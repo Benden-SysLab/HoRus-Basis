@@ -1,0 +1,91 @@
+---
+- name: Require normalized Access public URLs
+  ansible.builtin.assert:
+    that:
+      - access_public_url is match('^https://[^/]+$')
+      - access_admin_console_url is match('^https://[^/]+/admin/[^/]+/console/$')
+    fail_msg: Access public URL contains an invalid or non-normalized path.
+
+- name: Check whether HoRus TLS certificate covers service subdomains
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - x509
+      - -checkhost
+      - "{{ access_public_hostname }}"
+      - -noout
+      - -in
+      - "{{ access_nginx_tls_certificate }}"
+  delegate_to: "{{ access_nginx_host }}"
+  register: access_tls_check
+  changed_when: false
+  failed_when: false
+
+- name: Replace HoRus TLS certificate with wildcard certificate
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:4096
+      - -keyout
+      - "{{ access_nginx_tls_key }}"
+      - -out
+      - "{{ access_nginx_tls_certificate }}"
+      - -sha256
+      - -days
+      - "3650"
+      - -nodes
+      - -subj
+      - "/CN={{ nginx_tls_common_name }}"
+      - -addext
+      - "subjectAltName={{ nginx_tls_subject_alt_name }}"
+  delegate_to: "{{ access_nginx_host }}"
+  register: access_tls_created
+  when: access_tls_check.rc != 0
+
+- name: Install Access NGINX service block
+  ansible.builtin.template:
+    src: nginx/40_access.conf.j2
+    dest: "{{ access_nginx_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  delegate_to: "{{ access_nginx_host }}"
+  register: access_nginx_block
+
+- name: Install Access dashboard manifest
+  ansible.builtin.template:
+    src: nginx/access.json.j2
+    dest: "{{ access_nginx_manifest_path }}"
+    owner: root
+    group: www-data
+    mode: "0644"
+  delegate_to: "{{ access_nginx_host }}"
+
+- name: Validate NGINX after publishing Access
+  ansible.builtin.command: nginx -t
+  delegate_to: "{{ access_nginx_host }}"
+  changed_when: false
+
+- name: Reload NGINX after publishing Access
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: reloaded
+  delegate_to: "{{ access_nginx_host }}"
+  when: access_nginx_block.changed or (access_tls_created is defined and access_tls_created.changed)
+
+- name: Check Access discovery endpoint through NGINX
+  ansible.builtin.uri:
+    url: https://127.0.0.1/realms/master/.well-known/openid-configuration
+    headers:
+      Host: "{{ access_public_hostname }}"
+    validate_certs: false
+    status_code: 200
+  delegate_to: "{{ access_nginx_host }}"
+  register: access_nginx_discovery
+
+- name: Require Access discovery endpoint through public proxy
+  ansible.builtin.assert:
+    that: access_nginx_discovery.status == 200

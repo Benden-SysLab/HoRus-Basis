@@ -1,0 +1,49 @@
+---
+- name: Stage 11 - GitGuardian
+  hosts: security
+  become: true
+  vars:
+    keepass_master_password: "{{ hostvars['localhost'].horus_keepass_master_password }}"
+    gitguardian_api_key: >-
+      {{ lookup('keepass2', keepass_gitguardian_token_group,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password',
+                select='latest_valid') }}
+  pre_tasks:
+    - name: Require GitGuardian KeePass database path
+      ansible.builtin.assert:
+        that:
+          - keepass_database_path | length > 0
+        fail_msg: >-
+          HORUS_KEEPASS_DATABASE is empty. Export the WSL path to the KeePass
+          database before running Stage 11.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Check GitGuardian KeePass database
+      ansible.builtin.stat:
+        path: "{{ keepass_database_path }}"
+      register: gitguardian_keepass_database
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Require GitGuardian KeePass database
+      ansible.builtin.assert:
+        that:
+          - gitguardian_keepass_database.stat.isreg | default(false)
+        fail_msg: >-
+          KeePass database was not found at {{ keepass_database_path }}.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+  roles:
+    - gg

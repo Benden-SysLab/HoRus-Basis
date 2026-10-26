@@ -1,0 +1,145 @@
+---
+
+- name: Require Technitium DNS record parameters
+  ansible.builtin.assert:
+    that:
+      - technitium_api_url | length > 0
+      - technitium_api_token | length > 0
+      - technitium_dns_zone | length > 0
+      - technitium_dns_record_name | length > 0
+      - technitium_dns_record_address is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+    fail_msg: Technitium API token or DNS record parameters are missing.
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  no_log: true
+
+- name: Read Technitium authoritative zones
+  ansible.builtin.uri:
+    url: "{{ technitium_api_url }}/api/zones/list"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ technitium_api_token }}"
+    return_content: true
+    status_code: 200
+    use_proxy: false
+  register: technitium_zones
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  changed_when: false
+  no_log: true
+
+- name: Create the HoRus DNS zone when missing
+  ansible.builtin.uri:
+    url: "{{ technitium_api_url }}/api/zones/create"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ technitium_api_token }}"
+    body_format: form-urlencoded
+    body:
+      zone: "{{ technitium_dns_zone }}"
+      type: Primary
+    return_content: true
+    status_code: 200
+    use_proxy: false
+  register: technitium_zone_created
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  when: >-
+    technitium_zones.json.response.zones |
+    selectattr('name', 'equalto', technitium_dns_zone) |
+    list | length == 0
+  changed_when: technitium_zone_created.json.status == 'ok'
+  no_log: true
+
+- name: Read the current Technitium A record
+  ansible.builtin.uri:
+    url: "{{ technitium_api_url }}/api/zones/records/get?domain={{ technitium_dns_record_name | urlencode }}&zone={{ technitium_dns_zone | urlencode }}&listZone=false"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ technitium_api_token }}"
+    return_content: true
+    status_code: 200
+    use_proxy: false
+  register: technitium_record_before
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  changed_when: false
+  no_log: true
+
+- name: Determine whether the Technitium A record is current
+  ansible.builtin.set_fact:
+    technitium_record_is_current: >-
+      {{ technitium_record_before.json.response.records |
+         selectattr('type', 'equalto', 'A') |
+         selectattr('rData.ipAddress', 'equalto', technitium_dns_record_address) |
+         rejectattr('disabled') | list | length == 1 and
+         technitium_record_before.json.response.records |
+         selectattr('type', 'equalto', 'A') | list | length == 1 }}
+
+- name: Create or correct the Technitium A record
+  ansible.builtin.uri:
+    url: "{{ technitium_api_url }}/api/zones/records/add"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ technitium_api_token }}"
+    body_format: form-urlencoded
+    body:
+      domain: "{{ technitium_dns_record_name }}"
+      zone: "{{ technitium_dns_zone }}"
+      type: A
+      ttl: "{{ technitium_dns_record_ttl }}"
+      ipAddress: "{{ technitium_dns_record_address }}"
+      overwrite: "true"
+      disable: "false"
+    return_content: true
+    status_code: 200
+    use_proxy: false
+  register: technitium_record_written
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  when: not (technitium_record_is_current | bool)
+  changed_when: technitium_record_written.json.status == 'ok'
+  no_log: true
+
+- name: Read back the Technitium A record
+  ansible.builtin.uri:
+    url: "{{ technitium_api_url }}/api/zones/records/get?domain={{ technitium_dns_record_name | urlencode }}&zone={{ technitium_dns_zone | urlencode }}&listZone=false"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ technitium_api_token }}"
+    return_content: true
+    status_code: 200
+    use_proxy: false
+  register: technitium_record_after
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  changed_when: false
+  no_log: true
+
+- name: Require the expected Technitium A record
+  ansible.builtin.assert:
+    that:
+      - technitium_record_after.json.status == 'ok'
+      - >-
+        technitium_record_after.json.response.records |
+        selectattr('type', 'equalto', 'A') |
+        selectattr('rData.ipAddress', 'equalto', technitium_dns_record_address) |
+        rejectattr('disabled') | list | length == 1
+    fail_msg: Technitium did not return the expected enabled A record.
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  no_log: true

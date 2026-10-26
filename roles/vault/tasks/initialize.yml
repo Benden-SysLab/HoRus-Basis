@@ -1,0 +1,144 @@
+---
+
+- name: Read Vault initialization state
+  ansible.builtin.command: /usr/bin/vault status -format=json
+  environment:
+    VAULT_ADDR: https://127.0.0.1:8200
+    VAULT_CACERT: "{{ vault_cert_file }}"
+  register: vault_initial_status
+  changed_when: false
+  failed_when: vault_initial_status.rc not in [0, 2]
+
+- name: Parse Vault initialization state
+  ansible.builtin.set_fact:
+    vault_initial_status_data: "{{ vault_initial_status.stdout | from_json }}"
+
+- name: Verify existing Vault initialization secrets in KeePass
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ playbook_dir }}/../scripts/vault_keepass.py"
+      - verify
+      - --database
+      - "{{ keepass_database_path }}"
+      - --group
+      - "{{ vault_keepass_initialization_group }}"
+  environment:
+    HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  changed_when: false
+  no_log: true
+  when: vault_initial_status_data.initialized | bool
+
+- name: Check KeePass before Vault initialization
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ playbook_dir }}/../scripts/vault_keepass.py"
+      - check
+      - --database
+      - "{{ keepass_database_path }}"
+      - --group
+      - "{{ vault_keepass_initialization_group }}"
+  environment:
+    HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  changed_when: false
+  no_log: true
+  when: not (vault_initial_status_data.initialized | bool)
+
+- name: Initialize Vault
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/vault
+      - operator
+      - init
+      - "-key-shares={{ vault_key_shares }}"
+      - "-key-threshold={{ vault_key_threshold }}"
+      - -format=json
+  environment:
+    VAULT_ADDR: https://127.0.0.1:8200
+    VAULT_CACERT: "{{ vault_cert_file }}"
+  register: vault_initialization
+  no_log: true
+  when: not (vault_initial_status_data.initialized | bool)
+
+- name: Store Vault initialization secrets in KeePass
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ playbook_dir }}/../scripts/vault_keepass.py"
+      - store
+      - --database
+      - "{{ keepass_database_path }}"
+      - --group
+      - "{{ vault_keepass_initialization_group }}"
+    stdin: "{{ vault_initialization.stdout }}"
+    stdin_add_newline: false
+  environment:
+    HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  no_log: true
+  when: not (vault_initial_status_data.initialized | bool)
+
+- name: Read Vault unseal keys from new initialization
+  ansible.builtin.set_fact:
+    vault_unseal_keys: "{{ (vault_initialization.stdout | from_json).unseal_keys_b64 }}"
+  no_log: true
+  when: not (vault_initial_status_data.initialized | bool)
+
+- name: Read existing Vault unseal keys from KeePass
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ playbook_dir }}/../scripts/vault_keepass.py"
+      - read
+      - --database
+      - "{{ keepass_database_path }}"
+      - --group
+      - "{{ vault_keepass_initialization_group }}"
+  environment:
+    HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+  register: vault_keepass_secrets
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_become: false
+  changed_when: false
+  no_log: true
+  when:
+    - vault_initial_status_data.initialized | bool
+    - vault_initial_status_data.sealed | bool
+
+- name: Select existing Vault unseal keys
+  ansible.builtin.set_fact:
+    vault_unseal_keys: "{{ (vault_keepass_secrets.stdout | from_json).unseal_keys_b64 }}"
+  no_log: true
+  when:
+    - vault_initial_status_data.initialized | bool
+    - vault_initial_status_data.sealed | bool
+
+- name: Unseal Vault
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/vault
+      - operator
+      - unseal
+      - "{{ item }}"
+  environment:
+    VAULT_ADDR: https://127.0.0.1:8200
+    VAULT_CACERT: "{{ vault_cert_file }}"
+  loop: "{{ vault_unseal_keys[:vault_key_threshold] }}"
+  no_log: true
+  when:
+    - not (vault_initial_status_data.initialized | bool) or
+      (vault_initial_status_data.sealed | bool)

@@ -1,0 +1,56 @@
+---
+
+fluent_bit_package_name: fluent-bit
+fluent_bit_service_name: fluent-bit
+fluent_bit_binary_path: /opt/fluent-bit/bin/fluent-bit
+fluent_bit_repository_url: https://packages.fluentbit.io/debian
+fluent_bit_repository_key_url: https://packages.fluentbit.io/fluentbit.key
+fluent_bit_keyring_path: /etc/apt/keyrings/fluentbit.gpg
+# Fluent Bit currently publishes Debian packages for bookworm, not trixie.
+fluent_bit_repository_distribution: bookworm
+fluent_bit_repository_component: main
+fluent_bit_config_path: /etc/fluent-bit/fluent-bit.conf
+fluent_bit_parser_path: /etc/fluent-bit/parsers.conf
+fluent_bit_log_dir: /var/log/fluent-bit
+fluent_bit_state_dir: /var/lib/fluent-bit
+fluent_bit_output_path: /var/log/fluent-bit/host.log
+fluent_bit_tail_paths:
+  - /var/log/*.log
+  - /var/log/**/*.log
+
+fluent_bit_service_profiles:
+  edge:
+    paths:
+      - /var/log/nginx/*.log
+  databases:
+    paths:
+      - /var/log/postgresql/postgresql-json-*.json
+  agents:
+    paths:
+      - /var/log/*.log
+  secrets:
+    paths:
+      - /var/log/vault/*.log
+  identity:
+    paths:
+      - /var/log/keycloak/*.log
+  gitea:
+    paths:
+      - /var/log/gitea/*.log
+  wiki:
+    paths:
+      - /var/log/wiki/*.log
+  vikunja:
+    paths:
+      - /var/log/vikunja/*.log
+  jenkins:
+    paths: []
+  automation:
+    paths:
+      - /var/log/ansible/*.log
+  default:
+    paths:
+      - /var/log/*.log
+      - /var/log/**/*.log
+
+

@@ -1,0 +1,9 @@
+# Managed by HoRus-Basis. Local-only baseline access.
+local   all             postgres                                peer
+local   all             all                                     peer
+host    all             all             127.0.0.1/32             scram-sha-256
+host    all             all             ::1/128                  scram-sha-256
+{% for application in postgresql_applications %}
+host    {{ application.database }}    {{ application.user }}    {{ application.host }}/32    scram-sha-256
+{% endfor %}
+

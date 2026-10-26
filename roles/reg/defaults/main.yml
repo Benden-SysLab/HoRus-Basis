@@ -1,0 +1,35 @@
+---
+registry_version: 2.1.22
+registry_binary_url: "https://github.com/project-zot/zot/releases/download/v{{ registry_version }}/zot-linux-amd64"
+registry_binary_checksum: sha256:33b9b5bfe05d6788c076de951a01920477dbd6395c330146e23cc2340073e52e
+registry_binary_path: /usr/local/bin/zot
+registry_service_name: zot
+registry_system_user: zot
+registry_system_group: zot
+registry_config_dir: /etc/zot
+registry_config_path: /etc/zot/config.json
+registry_oidc_credentials_path: /etc/zot/oidc-credentials.json
+registry_data_dir: /var/lib/zot
+registry_log_dir: /var/log/zot
+registry_log_path: /var/log/zot/zot.log
+registry_http_port: 5000
+registry_public_hostname: ""
+registry_public_url: ""
+
+registry_oidc_provider: oidc
+registry_oidc_client_id: zot
+registry_oidc_client_secret: ""
+registry_oidc_realm: ""
+registry_oidc_issuer: ""
+registry_oidc_redirect_uri: "{{ registry_public_url }}/zot/auth/callback/{{ registry_oidc_provider }}"
+registry_keycloak_host: horus-iam-srv01
+registry_keycloak_url: http://127.0.0.1:8080
+registry_admin_user: ""
+
+registry_nginx_host: horus-lb-srv01
+registry_nginx_upstream_address: ""
+registry_nginx_conf_path: /etc/nginx/conf.d/62_registry.conf
+registry_nginx_manifest_path: /var/www/horus/services/registry.json
+registry_nginx_tls_certificate: /etc/nginx/tls/horus-admin.crt
+registry_nginx_tls_key: /etc/nginx/tls/horus-admin.key
+

@@ -1,0 +1,36 @@
+upstream horus_vault_backend {
+    server {{ vault_nginx_upstream_address }}:{{ vault_nginx_upstream_port }} max_fails=3 fail_timeout=30s;
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    server_name {{ vault_public_hostname }};
+    return 301 https://{{ vault_public_hostname }}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name {{ vault_public_hostname }};
+
+    ssl_certificate {{ vault_nginx_tls_certificate }};
+    ssl_certificate_key {{ vault_nginx_tls_key }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location / {
+        proxy_pass https://horus_vault_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_ssl_server_name on;
+        proxy_ssl_name horus-vlt-srv01;
+        proxy_ssl_verify off;
+        proxy_redirect https://{{ vault_nginx_upstream_address }}:{{ vault_nginx_upstream_port }}/ {{ vault_public_url }};
+    }
+}

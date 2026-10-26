@@ -1,0 +1,42 @@
+---
+access_version: 26.8.1
+access_service_name: keycloak
+access_system_user: keycloak
+access_system_group: keycloak
+access_install_root: /opt/keycloak
+access_release_dir: "/opt/keycloak/keycloak-{{ access_version }}"
+access_current_dir: /opt/keycloak/current
+access_archive_url: "https://github.com/keycloak/keycloak/releases/download/{{ access_version }}/keycloak-{{ access_version }}.tar.gz"
+access_config_dir: /etc/keycloak
+access_config_path: /etc/keycloak/keycloak.conf
+access_environment_path: /etc/keycloak/keycloak.env
+access_bootstrap_env_path: /etc/keycloak/bootstrap.env
+access_bootstrap_marker: /var/lib/keycloak/.bootstrap-complete
+access_log_dir: /var/log/keycloak
+access_log_path: /var/log/keycloak/keycloak.log
+access_http_port: 8080
+access_management_port: 9000
+access_public_hostname: ""
+access_public_url: ""
+access_realm: ""
+access_personal_user: ""
+access_personal_email: ""
+access_personal_password: ""
+access_personal_admin_role: realm-admin
+access_personal_kcadm_config: /tmp/horus-personal-user-kcadm.config
+access_admin_console_url: "{{ access_public_url }}/admin/{{ access_realm }}/console/"
+
+access_postgres_host: ""
+access_postgres_port: 5432
+access_postgres_database: ""
+access_postgres_user: ""
+access_postgres_password: ""
+access_postgres_config_path: /etc/postgresql/17/horus/pg_hba.conf
+access_postgres_service_name: postgresql@17-horus
+
+access_nginx_host: horus-lb-srv01
+access_nginx_upstream_address: ""
+access_nginx_conf_path: /etc/nginx/conf.d/40_access.conf
+access_nginx_manifest_path: /var/www/horus/services/access.json
+access_nginx_tls_certificate: /etc/nginx/tls/horus-admin.crt
+access_nginx_tls_key: /etc/nginx/tls/horus-admin.key

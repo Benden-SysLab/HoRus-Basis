@@ -1,0 +1,15 @@
+db=postgres
+db-url=jdbc:postgresql://{{ access_postgres_host }}:{{ access_postgres_port }}/{{ access_postgres_database }}
+
+hostname=https://{{ access_public_hostname }}
+http-enabled=true
+http-port={{ access_http_port }}
+proxy-headers=xforwarded
+
+health-enabled=true
+metrics-enabled=true
+http-management-port={{ access_management_port }}
+
+log=console,file
+log-file={{ access_log_path }}
+log-level=INFO

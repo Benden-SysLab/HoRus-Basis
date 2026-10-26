@@ -1,0 +1,85 @@
+---
+- name: Install Vikunja repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - gnupg
+      - postgresql-client
+    state: present
+    update_cache: true
+
+- name: Create Vikunja APT keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download Vikunja repository signing key
+  ansible.builtin.get_url:
+    url: "{{ vikunja_repository_key_url }}"
+    dest: /tmp/vikunja-repository.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Convert Vikunja repository signing key
+  ansible.builtin.command:
+    argv: [gpg, --dearmor, --yes, --output, "{{ vikunja_repository_keyring_path }}", /tmp/vikunja-repository.asc]
+  changed_when: false
+
+- name: Configure Vikunja APT repository
+  ansible.builtin.apt_repository:
+    repo: "{{ vikunja_repository }}"
+    filename: vikunja
+    state: present
+
+- name: Install pinned Vikunja release
+  ansible.builtin.apt:
+    name: "vikunja={{ vikunja_version }}"
+    state: present
+    update_cache: true
+    allow_downgrade: false
+
+- name: Check installed Vikunja executable
+  ansible.builtin.stat:
+    path: "{{ vikunja_binary_path }}"
+    follow: true
+  register: vikunja_binary
+
+- name: Require installed Vikunja executable
+  ansible.builtin.assert:
+    that:
+      - vikunja_binary.stat.isreg | default(false)
+      - vikunja_binary.stat.executable | default(false)
+    fail_msg: >-
+      The Vikunja package is installed but its executable was not found at
+      {{ vikunja_binary_path }}.
+
+- name: Create Vikunja system group
+  ansible.builtin.group:
+    name: "{{ vikunja_system_group }}"
+    system: true
+
+- name: Create Vikunja service account
+  ansible.builtin.user:
+    name: "{{ vikunja_system_user }}"
+    group: "{{ vikunja_system_group }}"
+    home: "{{ vikunja_data_dir }}"
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Create Vikunja directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ vikunja_system_user }}"
+    group: "{{ vikunja_system_group }}"
+    mode: "0750"
+  loop:
+    - "{{ vikunja_config_dir }}"
+    - "{{ vikunja_data_dir }}"
+    - "{{ vikunja_files_dir }}"
+    - "{{ vikunja_log_dir }}"

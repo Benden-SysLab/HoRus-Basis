@@ -1,0 +1,24 @@
+---
+- name: Check Gitea service
+  ansible.builtin.command: systemctl is-active {{ gitea_service_name }}
+  register: gitea_service_state
+  changed_when: false
+
+- name: Require Gitea service to be active
+  ansible.builtin.assert:
+    that: gitea_service_state.stdout | trim == 'active'
+
+- name: Check local Gitea health endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ gitea_http_port }}/api/healthz"
+    status_code: 200
+
+- name: Check Gitea public page through NGINX
+  ansible.builtin.uri:
+    url: https://127.0.0.1/
+    headers:
+      Host: "{{ gitea_public_hostname }}"
+    validate_certs: false
+    status_code: 200
+  delegate_to: "{{ gitea_nginx_host }}"
+

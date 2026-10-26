@@ -1,0 +1,40 @@
+---
+- name: Install Registry NGINX service block
+  ansible.builtin.template:
+    src: nginx/62_registry.conf.j2
+    dest: "{{ registry_nginx_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  delegate_to: "{{ registry_nginx_host }}"
+  register: registry_nginx_block
+
+- name: Install Registry dashboard manifest
+  ansible.builtin.template:
+    src: nginx/registry.json.j2
+    dest: "{{ registry_nginx_manifest_path }}"
+    owner: root
+    group: www-data
+    mode: "0644"
+  delegate_to: "{{ registry_nginx_host }}"
+
+- name: Validate NGINX after publishing Registry
+  ansible.builtin.command: nginx -t
+  delegate_to: "{{ registry_nginx_host }}"
+  changed_when: false
+
+- name: Reload NGINX after publishing Registry
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: reloaded
+  delegate_to: "{{ registry_nginx_host }}"
+  when: registry_nginx_block.changed
+
+- name: Check Registry through NGINX
+  ansible.builtin.uri:
+    url: https://127.0.0.1/v2/
+    headers:
+      Host: "{{ registry_public_hostname }}"
+    validate_certs: false
+    status_code: [200, 401]
+  delegate_to: "{{ registry_nginx_host }}"

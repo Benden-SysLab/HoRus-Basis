@@ -1,0 +1,76 @@
+---
+- name: Install Keycloak PostgreSQL access rule
+  ansible.builtin.lineinfile:
+    path: "{{ access_postgres_config_path }}"
+    line: >-
+      host    {{ access_postgres_database }}    {{ access_postgres_user }}
+      {{ hostvars['horus-iam-srv01'].ansible_host }}/32    scram-sha-256
+    insertafter: EOF
+    state: present
+  delegate_to: horus-db-srv03
+  register: access_postgres_hba
+
+- name: Reload PostgreSQL after Access policy change
+  ansible.builtin.systemd_service:
+    name: "{{ access_postgres_service_name }}"
+    state: reloaded
+  delegate_to: horus-db-srv03
+  when: access_postgres_hba.changed
+
+- name: Check Keycloak PostgreSQL role
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -A, -t, -d, postgres, -c, "SELECT 1 FROM pg_roles WHERE rolname='keycloak';"]
+  delegate_to: horus-db-srv03
+  register: access_postgres_role
+  changed_when: false
+
+- name: Create Keycloak PostgreSQL role
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, postgres, -c, "CREATE ROLE keycloak LOGIN;"]
+  delegate_to: horus-db-srv03
+  when: access_postgres_role.stdout | trim != '1'
+
+- name: Set Keycloak PostgreSQL password
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, postgres]
+    stdin: |-
+      \getenv keycloak_password ACCESS_POSTGRES_PASSWORD
+      ALTER ROLE keycloak PASSWORD :'keycloak_password';
+    stdin_add_newline: true
+  environment:
+    ACCESS_POSTGRES_PASSWORD: "{{ access_postgres_password }}"
+  delegate_to: horus-db-srv03
+  changed_when: false
+  no_log: true
+
+- name: Check Keycloak PostgreSQL database
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -A, -t, -d, postgres, -c, "SELECT 1 FROM pg_database WHERE datname='keycloak';"]
+  delegate_to: horus-db-srv03
+  register: access_postgres_database_exists
+  changed_when: false
+
+- name: Create Keycloak PostgreSQL database
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, createdb, -O, keycloak, keycloak]
+  delegate_to: horus-db-srv03
+  when: access_postgres_database_exists.stdout | trim != '1'
+
+- name: Restrict Keycloak database connection privileges
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, postgres]
+    stdin: |-
+      REVOKE CONNECT ON DATABASE keycloak FROM PUBLIC;
+      GRANT CONNECT ON DATABASE keycloak TO keycloak;
+    stdin_add_newline: true
+  delegate_to: horus-db-srv03
+  changed_when: false
+
+- name: Verify Keycloak database login from Access host
+  ansible.builtin.command:
+    argv: [psql, -h, "{{ access_postgres_host }}", -p, "{{ access_postgres_port }}", -U, keycloak, -d, keycloak, -X, -A, -t, -c, "SELECT current_user;"]
+  environment:
+    PGPASSWORD: "{{ access_postgres_password }}"
+  register: access_database_login
+  changed_when: false
+  no_log: true

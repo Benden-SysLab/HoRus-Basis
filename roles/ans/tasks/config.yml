@@ -1,0 +1,56 @@
+---
+- name: Create Ansible controller directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ ansible_controller_config_dir }}"
+      owner: root
+      group: "{{ ansible_controller_group }}"
+      mode: "0755"
+    - path: "{{ ansible_controller_workspace }}"
+      owner: "{{ ansible_controller_operator }}"
+      group: "{{ ansible_controller_group }}"
+      mode: "2775"
+    - path: "{{ ansible_controller_inventory_dir }}"
+      owner: "{{ ansible_controller_operator }}"
+      group: "{{ ansible_controller_group }}"
+      mode: "2775"
+    - path: "{{ ansible_controller_projects_dir }}"
+      owner: "{{ ansible_controller_operator }}"
+      group: "{{ ansible_controller_group }}"
+      mode: "2775"
+    - path: "{{ ansible_controller_roles_dir }}"
+      owner: "{{ ansible_controller_operator }}"
+      group: "{{ ansible_controller_group }}"
+      mode: "2775"
+    - path: "{{ ansible_controller_collections_dir }}"
+      owner: "{{ ansible_controller_operator }}"
+      group: "{{ ansible_controller_group }}"
+      mode: "2775"
+    - path: "{{ ansible_controller_log_dir }}"
+      owner: root
+      group: "{{ ansible_controller_group }}"
+      mode: "2775"
+
+- name: Create Ansible controller log file
+  ansible.builtin.file:
+    path: "{{ ansible_controller_log_path }}"
+    state: touch
+    owner: root
+    group: "{{ ansible_controller_group }}"
+    mode: "0664"
+    modification_time: preserve
+    access_time: preserve
+
+- name: Install Ansible controller configuration
+  ansible.builtin.template:
+    src: ansible.cfg.j2
+    dest: "{{ ansible_controller_config_path }}"
+    owner: root
+    group: "{{ ansible_controller_group }}"
+    mode: "0644"
+

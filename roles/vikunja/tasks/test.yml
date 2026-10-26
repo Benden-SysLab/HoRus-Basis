@@ -1,0 +1,23 @@
+---
+- name: Check Vikunja service
+  ansible.builtin.command: systemctl is-active {{ vikunja_service_name }}
+  register: vikunja_service_state
+  changed_when: false
+
+- name: Require Vikunja service to be active
+  ansible.builtin.assert:
+    that: vikunja_service_state.stdout | trim == 'active'
+
+- name: Check local Vikunja endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ vikunja_http_port }}/api/v1/info"
+    status_code: 200
+
+- name: Check public Vikunja endpoint through NGINX
+  ansible.builtin.uri:
+    url: https://127.0.0.1/api/v1/info
+    headers:
+      Host: "{{ vikunja_public_hostname }}"
+    validate_certs: false
+    status_code: 200
+  delegate_to: "{{ vikunja_nginx_host }}"

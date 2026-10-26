@@ -1,0 +1,10 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart Registry
+  ansible.builtin.systemd_service:
+    name: "{{ registry_service_name }}"
+    state: restarted
+

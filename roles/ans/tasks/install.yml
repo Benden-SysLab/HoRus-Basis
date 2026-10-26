@@ -1,0 +1,57 @@
+---
+- name: Install Ansible controller operating system dependencies
+  ansible.builtin.apt:
+    name:
+      - python3
+      - python3-venv
+      - python3-pip
+      - git
+      - openssh-client
+      - rsync
+      - ca-certificates
+    state: present
+    update_cache: true
+
+- name: Create Ansible controller group
+  ansible.builtin.group:
+    name: "{{ ansible_controller_group }}"
+    system: true
+
+- name: Add operator to Ansible controller group
+  ansible.builtin.user:
+    name: "{{ ansible_controller_operator }}"
+    groups: "{{ ansible_controller_group }}"
+    append: true
+
+- name: Create Ansible controller installation directory
+  ansible.builtin.file:
+    path: "{{ ansible_controller_root }}"
+    state: directory
+    owner: root
+    group: "{{ ansible_controller_group }}"
+    mode: "0755"
+
+- name: Create Ansible controller virtual environment
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -m
+      - venv
+      - "{{ ansible_controller_venv }}"
+    creates: "{{ ansible_controller_venv }}/bin/python"
+
+- name: Install pinned Ansible Core
+  ansible.builtin.pip:
+    name: "ansible-core=={{ ansible_controller_version }}"
+    virtualenv: "{{ ansible_controller_venv }}"
+
+- name: Publish Ansible controller commands
+  ansible.builtin.file:
+    src: "{{ ansible_controller_venv }}/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+    owner: root
+    group: root
+    force: true
+  loop: "{{ ansible_controller_commands }}"
+

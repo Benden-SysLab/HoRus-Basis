@@ -1,0 +1,44 @@
+---
+
+nginx_package_name: nginx
+nginx_service_name: nginx
+nginx_config_path: /etc/nginx/nginx.conf
+nginx_conf_d_path: /etc/nginx/conf.d
+nginx_snippets_path: /etc/nginx/snippets
+nginx_listen_address: 0.0.0.0
+nginx_listen_port: 443
+nginx_server_name: ""
+nginx_worker_processes: auto
+nginx_portal_root: /var/www/horus
+nginx_portal_services_dir: /var/www/horus/services
+nginx_portal_icons_dir: /var/www/horus/icons
+nginx_tls_dir: /etc/nginx/tls
+nginx_tls_certificate: /etc/nginx/tls/horus-admin.crt
+nginx_tls_key: /etc/nginx/tls/horus-admin.key
+nginx_tls_common_name: ""
+nginx_tls_subject_alt_name: ""
+nginx_portal_asset_version: "20261027-2"
+nginx_portal_required_icons:
+  - cockpit.svg
+  - v2raya.svg
+  - technitium.svg
+  - tplink.svg
+  - proxmox.svg
+  - vault.svg
+  - keycloak.svg
+  - gitea.svg
+  - wikijs.svg
+  - vikunja.svg
+  - registry.svg
+  - jenkins.svg
+
+# Service manifests left by applications that have been retired from HoRus.
+# The dashboard discovers every JSON file in this directory automatically.
+nginx_retired_portal_manifests:
+  - "{{ nginx_portal_services_dir }}/minio.json"
+
+# Foundation cards owned by Stage 01. Application roles publish their own
+# manifests later and use the Service category.
+nginx_portal_foundation_services: []
+
+

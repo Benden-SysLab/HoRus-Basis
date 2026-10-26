@@ -1,0 +1,72 @@
+---
+- name: Install Jenkins Configuration as Code
+  ansible.builtin.template:
+    src: jenkins.yaml.j2
+    dest: "{{ jenkins_casc_path }}"
+    owner: root
+    group: jenkins
+    mode: "0640"
+  no_log: true
+  notify: Restart Jenkins
+
+- name: Create Jenkins systemd override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/jenkins.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install Jenkins systemd override
+  ansible.builtin.template:
+    src: systemd-override.conf.j2
+    dest: /etc/systemd/system/jenkins.service.d/horus.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Jenkins
+
+- name: Apply Jenkins configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Start and diagnose Jenkins readiness
+  block:
+    - name: Enable and start Jenkins
+      ansible.builtin.systemd_service:
+        name: jenkins
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for local Jenkins endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ jenkins_http_port }}/login"
+        status_code: [200, 302, 403]
+      register: jenkins_ready
+      retries: 36
+      delay: 5
+      until: jenkins_ready.status in [200, 302, 403]
+  rescue:
+    - name: Read failed Jenkins service status
+      ansible.builtin.command:
+        argv: [systemctl, --no-pager, --full, status, jenkins]
+      register: jenkins_failed_status
+      changed_when: false
+      failed_when: false
+    - name: Read failed Jenkins journal
+      ansible.builtin.command:
+        argv: [journalctl, --no-pager, -u, jenkins, -n, "200"]
+      register: jenkins_failed_journal
+      changed_when: false
+      failed_when: false
+    - name: Report Jenkins startup failure
+      ansible.builtin.fail:
+        msg: |-
+          Jenkins did not become ready.
+          === systemctl ===
+          {{ jenkins_failed_status.stdout | default('unavailable') }}
+          === journal ===
+          {{ jenkins_failed_journal.stdout | default('unavailable') }}
+

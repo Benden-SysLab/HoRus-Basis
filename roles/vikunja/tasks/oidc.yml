@@ -1,0 +1,133 @@
+---
+- name: Read HoRus internal TLS certificate for Vikunja
+  ansible.builtin.slurp:
+    src: "{{ vikunja_nginx_tls_certificate }}"
+  delegate_to: "{{ vikunja_nginx_host }}"
+  register: vikunja_internal_ca
+  no_log: true
+
+- name: Trust HoRus internal TLS certificate on Vikunja host
+  ansible.builtin.copy:
+    dest: /usr/local/share/ca-certificates/horus-admin.crt
+    content: "{{ vikunja_internal_ca.content | b64decode }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: vikunja_internal_ca_installed
+  no_log: true
+
+- name: Refresh Vikunja host certificate trust
+  ansible.builtin.command: update-ca-certificates
+  when: vikunja_internal_ca_installed.changed
+
+- name: Authenticate Keycloak administration CLI for Vikunja
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - config
+      - credentials
+      - --config
+      - /tmp/horus-vikunja-kcadm.config
+      - --server
+      - "{{ vikunja_keycloak_url }}"
+      - --realm
+      - master
+      - --user
+      - "{{ access_admin_user }}"
+      - --password
+      - "{{ access_admin_password }}"
+  delegate_to: "{{ vikunja_keycloak_host }}"
+  changed_when: false
+  no_log: true
+
+- name: Read Vikunja Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - get
+      - clients
+      - --config
+      - /tmp/horus-vikunja-kcadm.config
+      - -r
+      - "{{ vikunja_oidc_realm }}"
+      - -q
+      - "clientId={{ vikunja_oidc_client_id }}"
+  delegate_to: "{{ vikunja_keycloak_host }}"
+  register: vikunja_keycloak_clients
+  changed_when: false
+  no_log: true
+
+- name: Select Vikunja Keycloak client identifier
+  ansible.builtin.set_fact:
+    vikunja_keycloak_client_uuid: >-
+      {{ ((vikunja_keycloak_clients.stdout | from_json | first).id)
+         if (vikunja_keycloak_clients.stdout | from_json | length > 0) else '' }}
+  no_log: true
+
+- name: Create Vikunja Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - create
+      - clients
+      - --config
+      - /tmp/horus-vikunja-kcadm.config
+      - -r
+      - "{{ vikunja_oidc_realm }}"
+      - -s
+      - "clientId={{ vikunja_oidc_client_id }}"
+      - -s
+      - name=Vikunja
+      - -s
+      - enabled=true
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - "secret={{ vikunja_oidc_client_secret }}"
+      - -s
+      - "redirectUris=[\"{{ vikunja_oidc_redirect_uri }}\"]"
+      - -s
+      - "webOrigins=[\"{{ vikunja_public_url | regex_replace('/$', '') }}\"]"
+  delegate_to: "{{ vikunja_keycloak_host }}"
+  when: vikunja_keycloak_client_uuid | length == 0
+  no_log: true
+
+- name: Update Vikunja Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - update
+      - "clients/{{ vikunja_keycloak_client_uuid }}"
+      - --config
+      - /tmp/horus-vikunja-kcadm.config
+      - -r
+      - "{{ vikunja_oidc_realm }}"
+      - -s
+      - enabled=true
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - "secret={{ vikunja_oidc_client_secret }}"
+      - -s
+      - "redirectUris=[\"{{ vikunja_oidc_redirect_uri }}\"]"
+      - -s
+      - "webOrigins=[\"{{ vikunja_public_url | regex_replace('/$', '') }}\"]"
+  delegate_to: "{{ vikunja_keycloak_host }}"
+  when: vikunja_keycloak_client_uuid | length > 0
+  changed_when: false
+  no_log: true
+
+- name: Remove temporary Vikunja Keycloak CLI session
+  ansible.builtin.file:
+    path: /tmp/horus-vikunja-kcadm.config
+    state: absent
+  delegate_to: "{{ vikunja_keycloak_host }}"
+  no_log: true

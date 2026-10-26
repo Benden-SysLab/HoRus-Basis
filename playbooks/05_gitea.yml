@@ -1,0 +1,6 @@
+---
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Stage 05 - Gitea
+  ansible.builtin.import_playbook: stages/05_gitea.yml

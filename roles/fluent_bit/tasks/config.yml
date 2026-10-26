@@ -1,0 +1,46 @@
+---
+
+- name: Select Fluent Bit profile for the service group
+  ansible.builtin.set_fact:
+    fluent_bit_service_profile: >-
+      {{ (group_names | intersect(fluent_bit_service_profiles.keys()) | first) | default('default') }}
+    fluent_bit_selected_tail_paths: >-
+      {{ fluent_bit_service_profiles[
+         (group_names | intersect(fluent_bit_service_profiles.keys()) | first) | default('default')
+         ].paths }}
+
+- name: Create Fluent Bit log directory
+  ansible.builtin.file:
+    path: "{{ fluent_bit_log_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Fluent Bit state directory
+  ansible.builtin.file:
+    path: "{{ fluent_bit_state_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install Fluent Bit parsers
+  ansible.builtin.template:
+    src: parsers.conf.j2
+    dest: "{{ fluent_bit_parser_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Fluent Bit
+
+- name: Install service-specific Fluent Bit configuration
+  ansible.builtin.template:
+    src: fluent-bit.conf.j2
+    dest: "{{ fluent_bit_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "{{ fluent_bit_binary_path }} --dry-run -c %s"
+  notify: Restart Fluent Bit
+

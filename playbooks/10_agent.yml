@@ -1,0 +1,6 @@
+---
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Stage 10 - Jenkins agent
+  ansible.builtin.import_playbook: stages/10_agent.yml

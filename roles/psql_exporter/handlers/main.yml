@@ -1,0 +1,7 @@
+---
+
+- name: Restart PostgreSQL exporter
+  ansible.builtin.systemd_service:
+    name: "{{ postgres_exporter_service_name }}"
+    state: restarted
+

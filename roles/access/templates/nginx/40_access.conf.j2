@@ -1,0 +1,32 @@
+upstream horus_access_backend {
+    server {{ access_nginx_upstream_address }}:{{ access_http_port }} max_fails=3 fail_timeout=30s;
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    server_name {{ access_public_hostname }};
+    return 301 https://{{ access_public_hostname }}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name {{ access_public_hostname }};
+
+    ssl_certificate {{ access_nginx_tls_certificate }};
+    ssl_certificate_key {{ access_nginx_tls_key }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location / {
+        proxy_pass http://horus_access_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}

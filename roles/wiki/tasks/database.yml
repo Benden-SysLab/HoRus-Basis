@@ -1,0 +1,80 @@
+---
+- name: Install Wiki.js PostgreSQL access rule
+  ansible.builtin.lineinfile:
+    path: "{{ wiki_postgres_config_path }}"
+    line: >-
+      host    {{ wiki_postgres_database }}    {{ wiki_postgres_user }}
+      {{ hostvars['horus-wiki-srv01'].ansible_host }}/32    scram-sha-256
+    insertafter: EOF
+    state: present
+  delegate_to: horus-db-srv03
+  register: wiki_postgres_hba
+
+- name: Reload PostgreSQL after Wiki.js policy change
+  ansible.builtin.systemd_service:
+    name: "{{ wiki_postgres_service_name }}"
+    state: reloaded
+  delegate_to: horus-db-srv03
+  when: wiki_postgres_hba.changed
+
+- name: Check Wiki.js PostgreSQL role
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -A, -t, -d, postgres, -c, "SELECT 1 FROM pg_roles WHERE rolname='wiki';"]
+  delegate_to: horus-db-srv03
+  register: wiki_postgres_role
+  changed_when: false
+
+- name: Create Wiki.js PostgreSQL role
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, postgres, -c, "CREATE ROLE wiki LOGIN;"]
+  delegate_to: horus-db-srv03
+  when: wiki_postgres_role.stdout | trim != '1'
+
+- name: Set Wiki.js PostgreSQL password
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, postgres]
+    stdin: |-
+      \getenv wiki_password WIKI_POSTGRES_PASSWORD
+      ALTER ROLE wiki PASSWORD :'wiki_password';
+  environment:
+    WIKI_POSTGRES_PASSWORD: "{{ wiki_postgres_password }}"
+  delegate_to: horus-db-srv03
+  changed_when: false
+  no_log: true
+
+- name: Check Wiki.js PostgreSQL database
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -A, -t, -d, postgres, -c, "SELECT 1 FROM pg_database WHERE datname='wiki';"]
+  delegate_to: horus-db-srv03
+  register: wiki_postgres_database_check
+  changed_when: false
+
+- name: Create Wiki.js PostgreSQL database
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, createdb, -O, wiki, wiki]
+  delegate_to: horus-db-srv03
+  when: wiki_postgres_database_check.stdout | trim != '1'
+
+- name: Enable Wiki.js PostgreSQL search extension
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, wiki, -c, "CREATE EXTENSION IF NOT EXISTS pg_trgm;"]
+  delegate_to: horus-db-srv03
+  register: wiki_pg_trgm
+  changed_when: "'CREATE EXTENSION' in wiki_pg_trgm.stdout"
+
+- name: Restrict Wiki.js database connection privileges
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, postgres]
+    stdin: |-
+      REVOKE CONNECT ON DATABASE wiki FROM PUBLIC;
+      GRANT CONNECT ON DATABASE wiki TO wiki;
+  delegate_to: horus-db-srv03
+  changed_when: false
+
+- name: Verify Wiki.js database login from Wiki host
+  ansible.builtin.command:
+    argv: [psql, -h, "{{ wiki_postgres_host }}", -p, "{{ wiki_postgres_port }}", -U, wiki, -d, wiki, -X, -A, -t, -c, "SELECT current_user;"]
+  environment:
+    PGPASSWORD: "{{ wiki_postgres_password }}"
+  changed_when: false
+  no_log: true

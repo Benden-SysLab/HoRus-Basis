@@ -1,0 +1,9 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart Vikunja
+  ansible.builtin.systemd_service:
+    name: "{{ vikunja_service_name }}"
+    state: restarted

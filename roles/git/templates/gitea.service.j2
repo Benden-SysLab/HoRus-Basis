@@ -1,0 +1,20 @@
+[Unit]
+Description=HoRus Git Service (Gitea)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ gitea_system_user }}
+Group={{ gitea_system_group }}
+WorkingDirectory={{ gitea_data_dir }}
+ExecStart={{ gitea_binary_path }} web --config {{ gitea_config_path }}
+Restart=on-failure
+RestartSec=5s
+Environment=USER={{ gitea_system_user }} HOME=/home/git GITEA_WORK_DIR={{ gitea_data_dir }}
+LimitNOFILE=65536
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,114 @@
+---
+- name: Install Jenkins runtime prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - fontconfig
+      - "{{ jenkins_java_package }}"
+    state: present
+    update_cache: true
+
+- name: Create APT keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install Jenkins repository signing key
+  ansible.builtin.get_url:
+    url: https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
+    dest: /etc/apt/keyrings/jenkins-keyring.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure Jenkins LTS repository
+  ansible.builtin.apt_repository:
+    repo: deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/
+    filename: jenkins
+    state: present
+
+- name: Install pinned Jenkins LTS package
+  ansible.builtin.apt:
+    name: "jenkins={{ jenkins_version }}"
+    state: present
+    update_cache: true
+    allow_downgrade: true
+  notify: Restart Jenkins
+
+- name: Create Jenkins configuration directory
+  ansible.builtin.file:
+    path: "{{ jenkins_config_dir }}"
+    state: directory
+    owner: root
+    group: jenkins
+    mode: "0750"
+
+- name: Download Jenkins plugin manager
+  ansible.builtin.get_url:
+    url: "{{ jenkins_plugin_manager_url }}"
+    dest: "{{ jenkins_plugin_manager_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install Jenkins plugin list
+  ansible.builtin.template:
+    src: plugins.txt.j2
+    dest: "{{ jenkins_plugins_path }}"
+    owner: root
+    group: jenkins
+    mode: "0644"
+  register: jenkins_plugin_list
+
+- name: Check completed Jenkins plugin provisioning
+  ansible.builtin.stat:
+    path: "{{ jenkins_home }}/.horus-plugins-installed"
+  register: jenkins_plugin_marker
+
+- name: Stop Jenkins before changed plugin provisioning
+  ansible.builtin.systemd_service:
+    name: jenkins
+    state: stopped
+  when: jenkins_plugin_list.changed or not jenkins_plugin_marker.stat.exists
+
+- name: Install Jenkins plugins and dependencies
+  ansible.builtin.command:
+    argv:
+      - java
+      - -jar
+      - "{{ jenkins_plugin_manager_path }}"
+      - --war
+      - /usr/share/java/jenkins.war
+      - --plugin-download-directory
+      - "{{ jenkins_home }}/plugins"
+      - --plugin-file
+      - "{{ jenkins_plugins_path }}"
+  register: jenkins_plugin_install
+  changed_when: >-
+    jenkins_plugin_list.changed or
+    'Download complete' in jenkins_plugin_install.stdout
+  when: jenkins_plugin_list.changed or not jenkins_plugin_marker.stat.exists
+  notify: Restart Jenkins
+
+- name: Set Jenkins plugin directory ownership
+  ansible.builtin.file:
+    path: "{{ jenkins_home }}/plugins"
+    state: directory
+    owner: jenkins
+    group: jenkins
+    recurse: true
+  when: jenkins_plugin_list.changed or not jenkins_plugin_marker.stat.exists
+
+- name: Record completed Jenkins plugin provisioning
+  ansible.builtin.file:
+    path: "{{ jenkins_home }}/.horus-plugins-installed"
+    state: touch
+    owner: jenkins
+    group: jenkins
+    mode: "0644"
+  when: jenkins_plugin_list.changed or not jenkins_plugin_marker.stat.exists
+

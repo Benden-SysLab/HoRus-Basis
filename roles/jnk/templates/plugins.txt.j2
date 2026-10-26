@@ -1,0 +1,4 @@
+# Jenkins {{ jenkins_version }} plugin baseline
+{% for plugin in jenkins_plugins %}
+{{ plugin }}
+{% endfor %}

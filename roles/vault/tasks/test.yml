@@ -1,0 +1,63 @@
+---
+
+- name: Check Vault service state
+  ansible.builtin.command: systemctl is-active {{ vault_service_name }}
+  register: vault_service_state
+  changed_when: false
+
+- name: Require Vault service to be active
+  ansible.builtin.assert:
+    that: vault_service_state.stdout | trim == 'active'
+
+- name: Check Vault API status
+  ansible.builtin.command: /usr/bin/vault status -format=json
+  environment:
+    VAULT_ADDR: https://127.0.0.1:8200
+    VAULT_CACERT: "{{ vault_cert_file }}"
+  register: vault_status
+  changed_when: false
+  failed_when: vault_status.rc not in [0, 2]
+
+- name: Parse Vault state
+  ansible.builtin.set_fact:
+    vault_status_data: "{{ vault_status.stdout | from_json }}"
+
+- name: Require initialized and unsealed Vault
+  ansible.builtin.assert:
+    that:
+      - vault_status_data.initialized | bool
+      - not (vault_status_data.sealed | bool)
+      - vault_status_data.storage_type == 'postgresql'
+    fail_msg: "Vault is not initialized, unsealed, and backed by PostgreSQL."
+
+- name: Check Vault web API health
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8200/v1/sys/health
+    validate_certs: false
+    status_code: 200
+  changed_when: false
+
+- name: Check Vault data in PostgreSQL
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -X
+      - -A
+      - -t
+      - -d
+      - vault
+      - -c
+      - SELECT count(*) FROM vault_kv_store;
+  delegate_to: horus-db-srv03
+  register: vault_postgresql_rows
+  changed_when: false
+
+- name: Require Vault to have persisted data in PostgreSQL
+  ansible.builtin.assert:
+    that: vault_postgresql_rows.stdout | trim | int > 0
+
+

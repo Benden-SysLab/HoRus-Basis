@@ -1,0 +1,50 @@
+---
+- name: Install Gitea operating system dependencies
+  ansible.builtin.apt:
+    name:
+      - git
+      - git-lfs
+      - postgresql-client
+      - openssh-client
+    state: present
+    update_cache: true
+
+- name: Create Gitea system group
+  ansible.builtin.group:
+    name: "{{ gitea_system_group }}"
+    system: true
+
+- name: Create Gitea system user
+  ansible.builtin.user:
+    name: "{{ gitea_system_user }}"
+    group: "{{ gitea_system_group }}"
+    home: /home/git
+    shell: /bin/bash
+    system: true
+    create_home: true
+
+- name: Install verified Gitea binary
+  ansible.builtin.get_url:
+    url: "{{ gitea_download_url }}"
+    dest: "{{ gitea_binary_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    checksum: "sha256:{{ gitea_checksum_url }}"
+  notify: Restart Gitea
+
+- name: Create Gitea directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ gitea_config_dir }}", owner: root, group: "{{ gitea_system_group }}", mode: "0750" }
+    - { path: "{{ gitea_data_dir }}", owner: "{{ gitea_system_user }}", group: "{{ gitea_system_group }}", mode: "0750" }
+    - { path: "{{ gitea_data_dir }}/custom", owner: "{{ gitea_system_user }}", group: "{{ gitea_system_group }}", mode: "0750" }
+    - { path: "{{ gitea_data_dir }}/data", owner: "{{ gitea_system_user }}", group: "{{ gitea_system_group }}", mode: "0750" }
+    - { path: "{{ gitea_data_dir }}/data/gitea-repositories", owner: "{{ gitea_system_user }}", group: "{{ gitea_system_group }}", mode: "0750" }
+    - { path: "{{ gitea_log_dir }}", owner: "{{ gitea_system_user }}", group: "{{ gitea_system_group }}", mode: "0750" }
+

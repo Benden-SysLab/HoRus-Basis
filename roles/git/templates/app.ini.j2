@@ -1,0 +1,55 @@
+APP_NAME = HoRus Git
+RUN_USER = {{ gitea_system_user }}
+WORK_PATH = {{ gitea_data_dir }}
+
+[server]
+DOMAIN = {{ gitea_public_hostname }}
+ROOT_URL = {{ gitea_public_url }}
+HTTP_ADDR = 0.0.0.0
+HTTP_PORT = {{ gitea_http_port }}
+PROTOCOL = http
+SSH_DOMAIN = {{ gitea_public_hostname }}
+SSH_PORT = 22
+START_SSH_SERVER = false
+LFS_START_SERVER = true
+LFS_JWT_SECRET = {{ gitea_lfs_jwt_secret | to_json }}
+
+[database]
+DB_TYPE = postgres
+HOST = {{ gitea_postgres_host }}:{{ gitea_postgres_port }}
+NAME = {{ gitea_postgres_database }}
+USER = {{ gitea_postgres_user }}
+PASSWD = {{ gitea_postgres_password | to_json }}
+SSL_MODE = disable
+
+[repository]
+ROOT = {{ gitea_data_dir }}/data/gitea-repositories
+
+[security]
+INSTALL_LOCK = true
+SECRET_KEY = {{ gitea_secret_key | to_json }}
+INTERNAL_TOKEN = {{ gitea_internal_token | to_json }}
+
+[service]
+DISABLE_REGISTRATION = false
+ALLOW_ONLY_EXTERNAL_REGISTRATION = true
+SHOW_REGISTRATION_BUTTON = false
+ENABLE_PASSWORD_SIGNIN_FORM = true
+
+[oauth2_client]
+ENABLE_AUTO_REGISTRATION = true
+USERNAME = preferred_username
+UPDATE_AVATAR = true
+REGISTER_EMAIL_CONFIRM = false
+OPENID_CONNECT_SCOPES = email profile
+
+[oauth2]
+JWT_SECRET = {{ gitea_oauth2_jwt_secret | to_json }}
+
+[session]
+PROVIDER = db
+
+[log]
+MODE = file
+LEVEL = Info
+ROOT_PATH = {{ gitea_log_dir }}

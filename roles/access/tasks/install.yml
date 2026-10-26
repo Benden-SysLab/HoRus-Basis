@@ -1,0 +1,65 @@
+---
+- name: Install Keycloak runtime packages
+  ansible.builtin.apt:
+    name:
+      - openjdk-21-jre-headless
+      - postgresql-client
+      - tar
+    state: present
+    update_cache: true
+
+- name: Create Keycloak system group
+  ansible.builtin.group:
+    name: "{{ access_system_group }}"
+    system: true
+
+- name: Create Keycloak system user
+  ansible.builtin.user:
+    name: "{{ access_system_user }}"
+    group: "{{ access_system_group }}"
+    home: /var/lib/keycloak
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: true
+
+- name: Create Keycloak directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ access_install_root }}", owner: root, group: root, mode: "0755"}
+    - {path: "{{ access_config_dir }}", owner: root, group: "{{ access_system_group }}", mode: "0750"}
+    - {path: "{{ access_log_dir }}", owner: "{{ access_system_user }}", group: "{{ access_system_group }}", mode: "0750"}
+
+- name: Download Keycloak distribution
+  ansible.builtin.get_url:
+    url: "{{ access_archive_url }}"
+    dest: "/var/cache/keycloak-{{ access_version }}.tar.gz"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Extract Keycloak distribution
+  ansible.builtin.unarchive:
+    src: "/var/cache/keycloak-{{ access_version }}.tar.gz"
+    dest: "{{ access_install_root }}"
+    remote_src: true
+    creates: "{{ access_release_dir }}/bin/kc.sh"
+
+- name: Set Keycloak release ownership
+  ansible.builtin.file:
+    path: "{{ access_release_dir }}"
+    owner: "{{ access_system_user }}"
+    group: "{{ access_system_group }}"
+    recurse: true
+
+- name: Point Keycloak current symlink at selected release
+  ansible.builtin.file:
+    src: "{{ access_release_dir }}"
+    dest: "{{ access_current_dir }}"
+    state: link
+    force: true
+  notify: Restart Keycloak

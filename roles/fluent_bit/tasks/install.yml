@@ -1,0 +1,49 @@
+---
+
+- name: Install APT repository prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: false
+
+- name: Create APT keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download Fluent Bit repository signing key
+  ansible.builtin.get_url:
+    url: "{{ fluent_bit_repository_key_url }}"
+    dest: /etc/apt/keyrings/fluentbit.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Convert Fluent Bit signing key to keyring format
+  ansible.builtin.command:
+    cmd: "gpg --dearmor --yes --output {{ fluent_bit_keyring_path }} /etc/apt/keyrings/fluentbit.asc"
+    creates: "{{ fluent_bit_keyring_path }}"
+
+- name: Configure Fluent Bit APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by={{ fluent_bit_keyring_path }}]
+      {{ fluent_bit_repository_url }}/{{ fluent_bit_repository_distribution }}
+      {{ fluent_bit_repository_distribution }}
+      {{ fluent_bit_repository_component }}
+    filename: fluent-bit
+    state: present
+    update_cache: true
+
+- name: Install Fluent Bit
+  ansible.builtin.apt:
+    name: "{{ fluent_bit_package_name }}"
+    state: present
+    update_cache: false
+

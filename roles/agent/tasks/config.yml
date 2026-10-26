@@ -1,0 +1,91 @@
+---
+- name: Create Jenkins agent SSH directory
+  ansible.builtin.file:
+    path: "{{ jenkins_agent_home }}/.ssh"
+    state: directory
+    owner: "{{ jenkins_agent_user }}"
+    group: "{{ jenkins_agent_group }}"
+    mode: "0700"
+
+- name: Authorize only the Jenkins controller key on agent
+  ansible.builtin.copy:
+    dest: "{{ jenkins_agent_home }}/.ssh/authorized_keys"
+    content: "{{ jenkins_agent_ssh_public_key }}\n"
+    owner: "{{ jenkins_agent_user }}"
+    group: "{{ jenkins_agent_group }}"
+    mode: "0600"
+
+- name: Check for managed SSH allowlist
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config.d/20-horus-security.conf
+  register: jenkins_agent_ssh_allowlist
+
+- name: Permit Jenkins service account in existing SSH allowlist
+  ansible.builtin.replace:
+    path: /etc/ssh/sshd_config.d/20-horus-security.conf
+    regexp: '^(AllowUsers(?![^\n]*[ \t]{{ jenkins_agent_user | regex_escape }}(?:[ \t]|$))[^\n]*)$'
+    replace: '\1 {{ jenkins_agent_user }}'
+  when: jenkins_agent_ssh_allowlist.stat.isreg | default(false)
+  notify: Restart Jenkins agent SSH
+
+- name: Read managed SSH allowlist after Jenkins update
+  ansible.builtin.slurp:
+    src: /etc/ssh/sshd_config.d/20-horus-security.conf
+  when: jenkins_agent_ssh_allowlist.stat.isreg | default(false)
+  register: jenkins_agent_ssh_allowlist_content
+
+- name: Require Jenkins service account in managed SSH allowlist
+  ansible.builtin.assert:
+    that:
+      - >-
+        jenkins_agent_user in
+        ((jenkins_agent_ssh_allowlist_content.content | b64decode)
+         | regex_findall('(?m)^AllowUsers[ \\t]+([^\\n]+)$')
+         | join(' ')
+         | split)
+    fail_msg: Jenkins service account is absent from the managed SSH AllowUsers policy.
+  when: jenkins_agent_ssh_allowlist.stat.isreg | default(false)
+
+- name: Restrict Jenkins agent SSH account to public key authentication
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/90-jenkins-agent.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |-
+      Match User {{ jenkins_agent_user }}
+          AuthenticationMethods publickey
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          X11Forwarding no
+          AllowTcpForwarding no
+          PermitTunnel no
+      Match all
+  notify: Restart Jenkins agent SSH
+
+- name: Validate Jenkins agent SSH configuration
+  ansible.builtin.command:
+    argv: [/usr/sbin/sshd, -t]
+  changed_when: false
+
+- name: Apply Jenkins agent SSH configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Create Jenkins agent workspace
+  ansible.builtin.file:
+    path: "{{ jenkins_agent_home }}/workspace"
+    state: directory
+    owner: "{{ jenkins_agent_user }}"
+    group: "{{ jenkins_agent_group }}"
+    mode: "0750"
+
+- name: Read Jenkins agent ED25519 host key
+  ansible.builtin.slurp:
+    src: /etc/ssh/ssh_host_ed25519_key.pub
+  register: jenkins_agent_host_key_file
+
+- name: Select Jenkins agent host key
+  ansible.builtin.set_fact:
+    jenkins_agent_ssh_host_key: >-
+      {{ ((jenkins_agent_host_key_file.content | b64decode).split()[0:2]) | join(' ') }}
+

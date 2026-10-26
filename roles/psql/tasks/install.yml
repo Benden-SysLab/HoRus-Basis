@@ -1,0 +1,72 @@
+---
+
+- name: Install PostgreSQL cluster tooling without starting default services
+  ansible.builtin.apt:
+    name: postgresql-common
+    state: present
+    update_cache: false
+    policy_rc_d: 101
+
+- name: Disable automatic default cluster creation
+  ansible.builtin.lineinfile:
+    path: /etc/postgresql-common/createcluster.conf
+    regexp: '^\s*#?\s*create_main_cluster\s*='
+    line: create_main_cluster = false
+    create: true
+    mode: '0644'
+
+- name: Install PostgreSQL 17 server and client
+  ansible.builtin.apt:
+    name:
+      - postgresql-17
+      - postgresql-client-17
+      - postgresql-contrib-17
+    state: present
+    policy_rc_d: 101
+
+- name: Read PostgreSQL system account
+  ansible.builtin.getent:
+    database: passwd
+    key: postgres
+
+- name: Prepare PostgreSQL data directory
+  ansible.builtin.file:
+    path: "{{ postgresql_data_directory }}"
+    state: directory
+    owner: "{{ ansible_facts.getent_passwd.postgres[1] }}"
+    group: "{{ ansible_facts.getent_passwd.postgres[2] }}"
+    mode: '0700'
+
+- name: Check PostgreSQL data marker
+  ansible.builtin.stat:
+    path: "{{ postgresql_data_directory }}/PG_VERSION"
+  register: postgresql_data_marker
+
+- name: Refuse an unexpected populated PostgreSQL directory
+  ansible.builtin.find:
+    paths: "{{ postgresql_data_directory }}"
+    hidden: true
+    file_type: any
+    recurse: false
+  register: postgresql_data_entries
+  when: not postgresql_data_marker.stat.exists
+
+- name: Refuse initialization over unknown data
+  ansible.builtin.assert:
+    that:
+      - postgresql_data_marker.stat.exists or (postgresql_data_entries.matched | int == 0)
+    fail_msg: "PostgreSQL data directory is populated but has no PG_VERSION; refusing initialization."
+
+- name: Create the approved PostgreSQL cluster
+  ansible.builtin.command:
+    argv:
+      - pg_createcluster
+      - "{{ postgresql_major_version }}"
+      - "{{ postgresql_cluster_name }}"
+      - "--datadir={{ postgresql_data_directory }}"
+      - "--port={{ postgresql_port }}"
+      - --start-conf=manual
+  args:
+    creates: "{{ postgresql_data_directory }}/PG_VERSION"
+
+

@@ -1,0 +1,152 @@
+---
+- name: Verify Jenkins SSH credential from controller
+  block:
+    - name: Create temporary Jenkins agent private key file
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .jenkins-agent-key
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+      register: jenkins_agent_private_key_file
+
+    - name: Install temporary Jenkins agent private key
+      ansible.builtin.copy:
+        dest: "{{ jenkins_agent_private_key_file.path }}"
+        content: "{{ jenkins_agent_ssh_private_key }}"
+        owner: root
+        group: root
+        mode: "0600"
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+      no_log: true
+
+    - name: Create temporary Jenkins agent known-hosts file
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .jenkins-agent-known-hosts
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+      register: jenkins_agent_known_hosts_file
+
+    - name: Pin Jenkins agent host key for preflight
+      ansible.builtin.copy:
+        dest: "{{ jenkins_agent_known_hosts_file.path }}"
+        content: "{{ jenkins_agent_address }} {{ jenkins_agent_ssh_host_key }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+
+    - name: Test Jenkins SSH credential from controller
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - -i
+          - "{{ jenkins_agent_private_key_file.path }}"
+          - -o
+          - BatchMode=yes
+          - -o
+          - IdentitiesOnly=yes
+          - -o
+          - StrictHostKeyChecking=yes
+          - -o
+          - "UserKnownHostsFile={{ jenkins_agent_known_hosts_file.path }}"
+          - -o
+          - ConnectTimeout=10
+          - "{{ jenkins_agent_user }}@{{ jenkins_agent_address }}"
+          - /usr/bin/java
+          - -version
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+      changed_when: false
+  rescue:
+    - name: Read SSH server journal after Jenkins credential failure
+      ansible.builtin.command:
+        argv: [journalctl, --no-pager, -u, ssh, -n, "100"]
+      register: jenkins_agent_ssh_journal
+      changed_when: false
+      failed_when: false
+
+    - name: Report Jenkins SSH credential preflight failure
+      ansible.builtin.fail:
+        msg: |-
+          Jenkins controller could not authenticate to the agent with the KeePass key.
+          === agent ssh journal ===
+          {{ jenkins_agent_ssh_journal.stdout | default('unavailable') }}
+  always:
+    - name: Remove temporary Jenkins agent private key
+      ansible.builtin.file:
+        path: "{{ jenkins_agent_private_key_file.path }}"
+        state: absent
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+      when:
+        - jenkins_agent_private_key_file is defined
+        - jenkins_agent_private_key_file.path is defined
+      no_log: true
+
+    - name: Remove temporary Jenkins agent known-hosts file
+      ansible.builtin.file:
+        path: "{{ jenkins_agent_known_hosts_file.path }}"
+        state: absent
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+      when:
+        - jenkins_agent_known_hosts_file is defined
+        - jenkins_agent_known_hosts_file.path is defined
+
+- name: Wait for Jenkins agent SSH from controller
+  ansible.builtin.wait_for:
+    host: "{{ jenkins_agent_address }}"
+    port: 22
+    timeout: 15
+  delegate_to: "{{ jenkins_agent_controller_host }}"
+
+- name: Install Jenkins configuration with registered agent
+  ansible.builtin.template:
+    src: jenkins.yaml.j2
+    dest: "{{ jenkins_agent_controller_config }}"
+    owner: root
+    group: jenkins
+    mode: "0640"
+  delegate_to: "{{ jenkins_agent_controller_host }}"
+  no_log: true
+  register: jenkins_agent_controller_casc
+
+- name: Apply and diagnose Jenkins agent registration
+  block:
+    - name: Restart Jenkins after agent registration
+      ansible.builtin.systemd_service:
+        name: jenkins
+        state: restarted
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+      when: jenkins_agent_controller_casc.changed
+
+    - name: Wait for Jenkins after agent registration
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ jenkins_http_port }}/login"
+        status_code: [200, 302, 403]
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+      register: jenkins_agent_controller_ready
+      retries: 24
+      delay: 5
+      until: jenkins_agent_controller_ready.status in [200, 302, 403]
+  rescue:
+    - name: Read Jenkins status after agent registration failure
+      ansible.builtin.command:
+        argv: [systemctl, --no-pager, --full, status, jenkins]
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+      register: jenkins_agent_failed_status
+      changed_when: false
+      failed_when: false
+
+    - name: Read Jenkins journal after agent registration failure
+      ansible.builtin.command:
+        argv: [journalctl, --no-pager, -u, jenkins, -n, "200"]
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+      register: jenkins_agent_failed_journal
+      changed_when: false
+      failed_when: false
+
+    - name: Report Jenkins agent registration failure
+      ansible.builtin.fail:
+        msg: |-
+          Jenkins did not accept the agent configuration.
+          === systemctl ===
+          {{ jenkins_agent_failed_status.stdout | default('unavailable') }}
+          === journal ===
+          {{ jenkins_agent_failed_journal.stdout | default('unavailable') }}

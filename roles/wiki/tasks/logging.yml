@@ -1,0 +1,4 @@
+---
+# Wiki.js writes JSON logs to stdout/stderr. The systemd unit appends both
+# streams to /var/log/wiki/wiki.log for the shared Fluent Bit role.
+

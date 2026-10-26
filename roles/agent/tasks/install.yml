@@ -1,0 +1,40 @@
+---
+- name: Install Jenkins agent runtime and build baseline
+  ansible.builtin.apt:
+    name:
+      - "{{ jenkins_agent_java_package }}"
+      - git
+      - openssh-server
+      - build-essential
+      - curl
+      - jq
+      - rsync
+      - unzip
+    state: present
+    update_cache: true
+
+- name: Create Jenkins agent system group
+  ansible.builtin.group:
+    name: "{{ jenkins_agent_group }}"
+    system: true
+
+- name: Create Jenkins agent system user
+  ansible.builtin.user:
+    name: "{{ jenkins_agent_user }}"
+    group: "{{ jenkins_agent_group }}"
+    home: "{{ jenkins_agent_home }}"
+    shell: /bin/bash
+    system: true
+    create_home: true
+    password: "{{ jenkins_agent_account_password_hash }}"
+    update_password: on_create
+    password_lock: false
+  no_log: true
+
+- name: Enable and start SSH for Jenkins agent
+  ansible.builtin.systemd_service:
+    name: ssh
+    enabled: true
+    state: started
+# Reserved for install tasks of the agent service.
+

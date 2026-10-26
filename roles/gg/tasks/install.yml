@@ -1,0 +1,68 @@
+---
+- name: Install ggshield runtime prerequisites
+  ansible.builtin.apt:
+    name:
+      - python3
+      - python3-venv
+      - python3-packaging
+      - python3-setuptools
+      - ca-certificates
+      - git
+      - acl
+    state: present
+    update_cache: true
+
+- name: Create GitGuardian system group
+  ansible.builtin.group:
+    name: "{{ gitguardian_group }}"
+    system: true
+
+- name: Create GitGuardian system user
+  ansible.builtin.user:
+    name: "{{ gitguardian_user }}"
+    group: "{{ gitguardian_group }}"
+    home: "{{ gitguardian_data_dir }}"
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Create ggshield installation directory
+  ansible.builtin.file:
+    path: "{{ gitguardian_install_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create isolated ggshield virtual environment
+  ansible.builtin.command:
+    cmd: "python3 -m venv --system-site-packages {{ gitguardian_virtualenv }}"
+    creates: "{{ gitguardian_virtualenv }}/bin/python"
+
+- name: Allow ggshield virtual environment to use Debian Python base packages
+  ansible.builtin.lineinfile:
+    path: "{{ gitguardian_virtualenv }}/pyvenv.cfg"
+    regexp: '^include-system-site-packages = '
+    line: 'include-system-site-packages = true'
+
+- name: Install pinned ggshield in its isolated environment
+  ansible.builtin.pip:
+    name: "{{ gitguardian_package_name }}=={{ gitguardian_version }}"
+    virtualenv: "{{ gitguardian_virtualenv }}"
+    extra_args: >-
+      --timeout {{ gitguardian_pip_timeout }}
+      --retries {{ gitguardian_pip_retries }}
+      --resume-retries {{ gitguardian_pip_resume_retries }}
+  register: gitguardian_pip_install
+  retries: 3
+  delay: 10
+  until: gitguardian_pip_install is succeeded
+
+- name: Install authenticated HoRus ggshield wrapper
+  ansible.builtin.template:
+    src: horus-ggshield.j2
+    dest: "{{ gitguardian_binary }}"
+    owner: root
+    group: "{{ gitguardian_group }}"
+    mode: "0750"
+

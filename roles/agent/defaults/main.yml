@@ -1,0 +1,16 @@
+---
+jenkins_agent_user: ""
+jenkins_agent_group: jenkins
+jenkins_agent_home: /var/lib/jenkins-agent
+jenkins_ansible_user: ""
+jenkins_ansible_group: horus-ansible
+jenkins_ansible_home: "/home/{{ jenkins_ansible_user }}"
+jenkins_agent_java_package: openjdk-21-jre-headless
+jenkins_agent_controller_host: horus-jnk-srv01
+jenkins_agent_controller_config: /etc/jenkins/jenkins.yaml
+jenkins_agent_name: horus-agent-srv01
+jenkins_agent_ssh_public_key: ""
+jenkins_agent_ssh_private_key: ""
+jenkins_agent_account_password_hash: ""
+jenkins_agent_enabled: true
+

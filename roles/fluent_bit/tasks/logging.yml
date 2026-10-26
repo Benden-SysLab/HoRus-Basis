@@ -1,0 +1,19 @@
+---
+
+- name: Apply pending Fluent Bit configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start Fluent Bit
+  ansible.builtin.service:
+    name: "{{ fluent_bit_service_name }}"
+    enabled: true
+    state: started
+
+- name: Confirm Fluent Bit stays active after startup
+  ansible.builtin.command: systemctl is-active {{ fluent_bit_service_name }}
+  register: fluent_bit_active
+  changed_when: false
+  until: fluent_bit_active.stdout | trim == 'active'
+  retries: 3
+  delay: 2
+

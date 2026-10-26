@@ -1,0 +1,133 @@
+---
+- name: Read HoRus internal TLS certificate for Registry
+  ansible.builtin.slurp:
+    src: "{{ registry_nginx_tls_certificate }}"
+  delegate_to: "{{ registry_nginx_host }}"
+  register: registry_internal_ca
+  no_log: true
+
+- name: Trust HoRus internal TLS certificate on Registry host
+  ansible.builtin.copy:
+    dest: /usr/local/share/ca-certificates/horus-admin.crt
+    content: "{{ registry_internal_ca.content | b64decode }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: registry_internal_ca_installed
+  no_log: true
+
+- name: Refresh Registry host certificate trust
+  ansible.builtin.command: update-ca-certificates
+  when: registry_internal_ca_installed.changed
+
+- name: Authenticate Keycloak administration CLI for Registry
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - config
+      - credentials
+      - --config
+      - /tmp/horus-registry-kcadm.config
+      - --server
+      - "{{ registry_keycloak_url }}"
+      - --realm
+      - master
+      - --user
+      - "{{ access_admin_user }}"
+      - --password
+      - "{{ access_admin_password }}"
+  delegate_to: "{{ registry_keycloak_host }}"
+  changed_when: false
+  no_log: true
+
+- name: Read Registry Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - get
+      - clients
+      - --config
+      - /tmp/horus-registry-kcadm.config
+      - -r
+      - "{{ registry_oidc_realm }}"
+      - -q
+      - "clientId={{ registry_oidc_client_id }}"
+  delegate_to: "{{ registry_keycloak_host }}"
+  register: registry_keycloak_clients
+  changed_when: false
+  no_log: true
+
+- name: Select Registry Keycloak client identifier
+  ansible.builtin.set_fact:
+    registry_keycloak_client_uuid: >-
+      {{ ((registry_keycloak_clients.stdout | from_json | first).id)
+         if (registry_keycloak_clients.stdout | from_json | length > 0) else '' }}
+  no_log: true
+
+- name: Create Registry Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - create
+      - clients
+      - --config
+      - /tmp/horus-registry-kcadm.config
+      - -r
+      - "{{ registry_oidc_realm }}"
+      - -s
+      - "clientId={{ registry_oidc_client_id }}"
+      - -s
+      - name=HoRus Registry
+      - -s
+      - enabled=true
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - "secret={{ registry_oidc_client_secret }}"
+      - -s
+      - "redirectUris=[\"{{ registry_oidc_redirect_uri }}\"]"
+      - -s
+      - "webOrigins=[\"{{ registry_public_url }}\"]"
+  delegate_to: "{{ registry_keycloak_host }}"
+  when: registry_keycloak_client_uuid | length == 0
+  no_log: true
+
+- name: Update Registry Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - update
+      - "clients/{{ registry_keycloak_client_uuid }}"
+      - --config
+      - /tmp/horus-registry-kcadm.config
+      - -r
+      - "{{ registry_oidc_realm }}"
+      - -s
+      - enabled=true
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - "secret={{ registry_oidc_client_secret }}"
+      - -s
+      - "redirectUris=[\"{{ registry_oidc_redirect_uri }}\"]"
+      - -s
+      - "webOrigins=[\"{{ registry_public_url }}\"]"
+  delegate_to: "{{ registry_keycloak_host }}"
+  when: registry_keycloak_client_uuid | length > 0
+  changed_when: false
+  no_log: true
+
+- name: Remove temporary Registry Keycloak CLI session
+  ansible.builtin.file:
+    path: /tmp/horus-registry-kcadm.config
+    state: absent
+  delegate_to: "{{ registry_keycloak_host }}"
+  no_log: true

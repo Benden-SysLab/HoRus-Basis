@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+set -a
+# shellcheck disable=SC1091
+source {{ gitguardian_env_file | quote }}
+set +a
+
+exec {{ gitguardian_upstream_binary | quote }} \
+  --config-path {{ gitguardian_config_file | quote }} \
+  --log-file {{ gitguardian_log_file | quote }} \
+  "$@"

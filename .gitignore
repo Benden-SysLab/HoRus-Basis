@@ -1,0 +1,24 @@
+# KeePass databases and key files never belong in this repository
+*.kdbx
+*.keyx
+
+# Private inventory overlay. Keep only horus_vault.yml.example in Git.
+inventory/vault/horus_vault.yml
+
+# Local operational handoffs may contain live topology and operator paths.
+docs/CODEX_HANDOFF_*.md
+
+# Live gateway policy scripts embed the current network policy. They remain
+# local until converted to fully parameterized templates.
+scripts/apply_*_gateway_*.sh
+scripts/commit_*_gateway_*.sh
+scripts/audit_*_gateway_*.sh
+
+# Local/runtime files
+*.retry
+.ansible/
+.venv/
+.venv-*/
+__pycache__/
+.pytest_cache/
+

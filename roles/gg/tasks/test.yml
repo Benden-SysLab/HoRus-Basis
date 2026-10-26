@@ -1,0 +1,42 @@
+---
+- name: Check installed ggshield version
+  ansible.builtin.command:
+    argv:
+      - "{{ gitguardian_binary }}"
+      - --version
+  become_user: "{{ gitguardian_user }}"
+  register: gitguardian_version
+  changed_when: false
+
+- name: Check installed ggshield secret scanner command
+  ansible.builtin.command:
+    argv:
+      - "{{ gitguardian_binary }}"
+      - secret
+      - scan
+      - --help
+  become_user: "{{ gitguardian_user }}"
+  register: gitguardian_help
+  changed_when: false
+  no_log: true
+
+- name: Check GitGuardian API authentication and health
+  ansible.builtin.command:
+    argv:
+      - "{{ gitguardian_binary }}"
+      - api-status
+      - --format
+      - json
+  become_user: "{{ gitguardian_user }}"
+  register: gitguardian_api_status
+  changed_when: false
+  no_log: true
+
+- name: Report ggshield installation state
+  ansible.builtin.assert:
+    that:
+      - gitguardian_version.rc == 0
+      - gitguardian_help.rc == 0
+      - gitguardian_api_status.rc == 0
+    fail_msg: ggshield installation, command surface, or GitGuardian API authentication failed.
+

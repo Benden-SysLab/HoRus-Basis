@@ -1,0 +1,71 @@
+---
+
+- name: Create Vault TLS directory
+  ansible.builtin.file:
+    path: "{{ vault_cert_dir }}"
+    state: directory
+    owner: root
+    group: vault
+    mode: '0750'
+
+- name: Create Vault log directory
+  ansible.builtin.file:
+    path: "{{ vault_log_dir }}"
+    state: directory
+    owner: vault
+    group: vault
+    mode: '0750'
+
+- name: Create Vault self-signed certificate
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:4096
+      - -keyout
+      - "{{ vault_key_file }}"
+      - -out
+      - "{{ vault_cert_file }}"
+      - -sha256
+      - -days
+      - '3650'
+      - -nodes
+      - -subj
+      - "/CN={{ vault_tls_common_name }}"
+      - -addext
+      - "subjectAltName={{ vault_tls_subject_alt_name }}"
+  args:
+    creates: "{{ vault_cert_file }}"
+  notify: Restart Vault
+
+- name: Set Vault TLS permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: vault
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ vault_cert_file }}"
+      mode: '0644'
+    - path: "{{ vault_key_file }}"
+      mode: '0640'
+
+- name: Install Vault configuration
+  ansible.builtin.template:
+    src: vault.hcl.j2
+    dest: "{{ vault_config_path }}"
+    owner: root
+    group: vault
+    mode: '0640'
+  no_log: true
+  notify: Restart Vault
+
+- name: Enable and start Vault
+  ansible.builtin.systemd_service:
+    name: "{{ vault_service_name }}"
+    enabled: true
+    state: started
+
+

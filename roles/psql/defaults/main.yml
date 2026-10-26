@@ -1,0 +1,29 @@
+---
+
+postgresql_major_version: '17'
+postgresql_cluster_name: horus
+postgresql_port: 5432
+postgresql_data_directory: /srv/horus/infra/postgres/17/main
+postgresql_config_directory: /etc/postgresql/17/horus
+postgresql_service_name: postgresql@17-horus
+postgresql_listen_addresses: "127.0.0.1,{{ ansible_host }}"
+postgresql_applications:
+  - database: vault
+    user: vault
+    host: "{{ hostvars['horus-vlt-srv01'].ansible_host }}"
+  - database: keycloak
+    user: keycloak
+    host: "{{ hostvars['horus-iam-srv01'].ansible_host }}"
+  - database: wiki
+    user: wiki
+    host: "{{ hostvars['horus-wiki-srv01'].ansible_host }}"
+  - database: vikunja
+    user: vikunja
+    host: "{{ hostvars['horus-vkj-srv01'].ansible_host }}"
+postgresql_timezone: Europe/Moscow
+postgresql_json_log_prefix: postgresql-json
+postgresql_shared_preload_libraries: pg_stat_statements
+postgresql_pg_stat_statements_max: 10000
+postgresql_pg_stat_statements_track: all
+
+

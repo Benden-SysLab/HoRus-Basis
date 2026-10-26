@@ -1,0 +1,6 @@
+---
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Stage 07 - Vikunja
+  ansible.builtin.import_playbook: stages/07_vikunja.yml

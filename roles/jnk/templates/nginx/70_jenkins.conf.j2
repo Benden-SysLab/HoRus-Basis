@@ -1,0 +1,42 @@
+upstream horus_jenkins_backend {
+    server {{ jenkins_nginx_upstream_address }}:{{ jenkins_http_port }} max_fails=3 fail_timeout=30s;
+    keepalive 16;
+}
+
+map $http_upgrade $jenkins_connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
+server {
+    listen 80;
+    server_name {{ jenkins_public_hostname }};
+    return 301 https://{{ jenkins_public_hostname }}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name {{ jenkins_public_hostname }};
+
+    ssl_certificate {{ jenkins_nginx_tls_certificate }};
+    ssl_certificate_key {{ jenkins_nginx_tls_key }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    client_max_body_size 0;
+
+    location / {
+        proxy_pass http://horus_jenkins_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $jenkins_connection_upgrade;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 900s;
+        proxy_send_timeout 900s;
+    }
+}

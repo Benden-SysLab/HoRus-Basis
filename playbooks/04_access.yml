@@ -1,0 +1,6 @@
+---
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Stage 04 - Access management
+  ansible.builtin.import_playbook: stages/04_access.yml

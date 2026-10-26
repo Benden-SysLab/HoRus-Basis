@@ -1,0 +1,45 @@
+---
+vikunja_version: 2.7.1
+vikunja_service_name: vikunja
+vikunja_binary_path: /usr/local/bin/vikunja
+vikunja_system_user: vikunja
+vikunja_system_group: vikunja
+vikunja_config_dir: /etc/vikunja
+vikunja_config_path: /etc/vikunja/config.yml
+vikunja_data_dir: /var/lib/vikunja
+vikunja_files_dir: /var/lib/vikunja/files
+vikunja_log_dir: /var/log/vikunja
+vikunja_http_port: 3456
+vikunja_public_hostname: ""
+vikunja_public_url: ""
+vikunja_repository_key_url: https://dl.vikunja.io/repos/gpg.key
+vikunja_repository_keyring_path: /etc/apt/keyrings/vikunja.gpg
+vikunja_repository: >-
+  deb [signed-by={{ vikunja_repository_keyring_path }}]
+  https://dl.vikunja.io/repos/apt stable main
+
+vikunja_postgres_host: ""
+vikunja_postgres_port: 5432
+vikunja_postgres_database: ""
+vikunja_postgres_user: ""
+vikunja_postgres_password: ""
+vikunja_postgres_config_path: /etc/postgresql/17/horus/pg_hba.conf
+vikunja_postgres_service_name: postgresql@17-horus
+vikunja_service_secret: ""
+
+vikunja_oidc_provider: keycloak
+vikunja_oidc_client_id: vikunja
+vikunja_oidc_client_secret: ""
+vikunja_oidc_realm: ""
+vikunja_oidc_auth_url: ""
+vikunja_oidc_logout_url: "{{ vikunja_oidc_auth_url }}/protocol/openid-connect/logout"
+vikunja_oidc_redirect_uri: "{{ vikunja_public_url | regex_replace('/$', '') }}/auth/openid/{{ vikunja_oidc_provider }}"
+vikunja_keycloak_host: horus-iam-srv01
+vikunja_keycloak_url: http://127.0.0.1:8080
+
+vikunja_nginx_host: horus-lb-srv01
+vikunja_nginx_upstream_address: ""
+vikunja_nginx_conf_path: /etc/nginx/conf.d/61_vikunja.conf
+vikunja_nginx_manifest_path: /var/www/horus/services/vikunja.json
+vikunja_nginx_tls_certificate: /etc/nginx/tls/horus-admin.crt
+vikunja_nginx_tls_key: /etc/nginx/tls/horus-admin.key

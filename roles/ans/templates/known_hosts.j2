@@ -1,0 +1,6 @@
+{% for result in ansible_managed_host_keys.results %}
+{% set target = result.ansible_managed_target %}
+{% set key = (result.content | b64decode).split()[0:2] | join(' ') %}
+{{ hostvars[target].ansible_host }} {{ key }}
+{{ target }} {{ key }}
+{% endfor %}

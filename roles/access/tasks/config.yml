@@ -1,0 +1,154 @@
+---
+- name: Install Keycloak configuration
+  ansible.builtin.template:
+    src: keycloak.conf.j2
+    dest: "{{ access_config_path }}"
+    owner: root
+    group: "{{ access_system_group }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart Keycloak
+
+- name: Link Keycloak configuration into the release
+  ansible.builtin.file:
+    src: "{{ access_config_path }}"
+    dest: "{{ access_current_dir }}/conf/keycloak.conf"
+    state: link
+    force: true
+  notify: Restart Keycloak
+
+- name: Install Keycloak database environment
+  ansible.builtin.template:
+    src: keycloak.env.j2
+    dest: "{{ access_environment_path }}"
+    owner: root
+    group: "{{ access_system_group }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart Keycloak
+
+- name: Build optimized Keycloak server
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ access_system_user }}"
+      - --
+      - "{{ access_current_dir }}/bin/kc.sh"
+      - build
+      - --db=postgres
+  args:
+    creates: "/var/lib/keycloak/.built-{{ access_version }}"
+  register: access_build
+
+- name: Record optimized Keycloak build
+  ansible.builtin.file:
+    path: "/var/lib/keycloak/.built-{{ access_version }}"
+    state: touch
+    owner: "{{ access_system_user }}"
+    group: "{{ access_system_group }}"
+    mode: "0600"
+  when: access_build.changed
+
+- name: Install Keycloak systemd service
+  ansible.builtin.template:
+    src: keycloak.service.j2
+    dest: /etc/systemd/system/keycloak.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Keycloak
+
+- name: Check whether Keycloak bootstrap is complete
+  ansible.builtin.stat:
+    path: "{{ access_bootstrap_marker }}"
+  register: access_bootstrap_state
+
+- name: Install temporary Keycloak bootstrap credentials
+  ansible.builtin.copy:
+    dest: "{{ access_bootstrap_env_path }}"
+    owner: root
+    group: "{{ access_system_group }}"
+    mode: "0640"
+    content: |-
+      KC_BOOTSTRAP_ADMIN_USERNAME={{ access_admin_user | to_json }}
+      KC_BOOTSTRAP_ADMIN_PASSWORD={{ access_admin_password | to_json }}
+  when: not access_bootstrap_state.stat.exists
+  no_log: true
+
+- name: Enable and start Keycloak
+  ansible.builtin.systemd_service:
+    name: "{{ access_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Start and diagnose Keycloak readiness
+  block:
+    - name: Wait for Keycloak readiness
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ access_management_port }}/health/ready"
+        status_code: 200
+      register: access_ready
+      retries: 12
+      delay: 5
+      until: access_ready.status == 200
+  rescue:
+    - name: Read failed Keycloak service status
+      ansible.builtin.command:
+        argv: [systemctl, --no-pager, --full, status, keycloak]
+      register: access_failed_status
+      changed_when: false
+      failed_when: false
+
+    - name: Read failed Keycloak application log
+      ansible.builtin.command:
+        argv: [tail, -n, "160", "{{ access_log_path }}"]
+      register: access_failed_log
+      changed_when: false
+      failed_when: false
+
+    - name: Report Keycloak startup failure
+      ansible.builtin.fail:
+        msg: |-
+          Keycloak did not become ready.
+          === systemctl status ===
+          {{ access_failed_status.stdout | default('unavailable') }}
+          {{ access_failed_status.stderr | default('') }}
+          === Keycloak log ===
+          {{ access_failed_log.stdout | default('unavailable') }}
+          {{ access_failed_log.stderr | default('') }}
+
+- name: Remove temporary Keycloak bootstrap credentials
+  ansible.builtin.file:
+    path: "{{ access_bootstrap_env_path }}"
+    state: absent
+  when: not access_bootstrap_state.stat.exists
+  no_log: true
+
+- name: Record completed Keycloak bootstrap
+  ansible.builtin.file:
+    path: "{{ access_bootstrap_marker }}"
+    state: touch
+    owner: "{{ access_system_user }}"
+    group: "{{ access_system_group }}"
+    mode: "0600"
+  when: not access_bootstrap_state.stat.exists
+
+- name: Restart Keycloak without bootstrap credentials
+  ansible.builtin.systemd_service:
+    name: "{{ access_service_name }}"
+    state: restarted
+  when: not access_bootstrap_state.stat.exists
+
+- name: Wait for Keycloak after bootstrap cleanup
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ access_management_port }}/health/ready"
+    status_code: 200
+  register: access_ready_after_cleanup
+  retries: 30
+  delay: 5
+  until: access_ready_after_cleanup.status == 200
+  when: not access_bootstrap_state.stat.exists

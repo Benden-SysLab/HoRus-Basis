@@ -1,0 +1,9 @@
+---
+- name: Install Ansible log rotation policy
+  ansible.builtin.template:
+    src: ansible.logrotate.j2
+    dest: /etc/logrotate.d/horus-ansible
+    owner: root
+    group: root
+    mode: "0644"
+

@@ -1,0 +1,48 @@
+---
+gitea_version: 28.2.0
+gitea_service_name: gitea
+gitea_system_user: git
+gitea_system_group: git
+gitea_binary_path: /usr/local/bin/gitea
+gitea_download_url: "https://dl.gitea.com/gitea/{{ gitea_version }}/gitea-{{ gitea_version }}-linux-amd64"
+gitea_checksum_url: "{{ gitea_download_url }}.sha256"
+gitea_config_dir: /etc/gitea
+gitea_config_path: /etc/gitea/app.ini
+gitea_data_dir: /var/lib/gitea
+gitea_log_dir: /var/log/gitea
+gitea_http_port: 3000
+gitea_public_hostname: ""
+gitea_public_url: ""
+
+gitea_postgres_host: ""
+gitea_postgres_port: 5432
+gitea_postgres_database: ""
+gitea_postgres_user: ""
+gitea_postgres_password: ""
+gitea_postgres_config_path: /etc/postgresql/17/horus/pg_hba.conf
+gitea_postgres_service_name: postgresql@17-horus
+
+gitea_bootstrap_user: ""
+gitea_bootstrap_password: ""
+gitea_bootstrap_email: ""
+gitea_internal_token: ""
+gitea_secret_key: ""
+gitea_lfs_jwt_secret: ""
+gitea_oauth2_jwt_secret: ""
+
+gitea_oidc_name: horus
+gitea_oidc_client_id: gitea
+gitea_oidc_client_secret: ""
+gitea_oidc_realm: ""
+gitea_oidc_discovery_url: ""
+gitea_oidc_redirect_uri: "{{ gitea_public_url }}user/oauth2/{{ gitea_oidc_name }}/callback"
+gitea_keycloak_host: horus-iam-srv01
+gitea_keycloak_url: http://127.0.0.1:8080
+
+gitea_nginx_host: horus-lb-srv01
+gitea_nginx_upstream_address: ""
+gitea_nginx_conf_path: /etc/nginx/conf.d/50_gitea.conf
+gitea_nginx_manifest_path: /var/www/horus/services/gitea.json
+gitea_nginx_tls_certificate: /etc/nginx/tls/horus-admin.crt
+gitea_nginx_tls_key: /etc/nginx/tls/horus-admin.key
+

@@ -1,0 +1,25 @@
+[Unit]
+Description=HoRus Knowledge Base (Wiki.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ wiki_system_user }}
+Group={{ wiki_system_group }}
+WorkingDirectory={{ wiki_current_dir }}
+ExecStart=/usr/bin/node server
+Restart=on-failure
+RestartSec=5s
+Environment=NODE_ENV=production
+Environment=HOME={{ wiki_data_dir }}
+StandardOutput=append:{{ wiki_log_dir }}/wiki.log
+StandardError=append:{{ wiki_log_dir }}/wiki.log
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ wiki_data_dir }} {{ wiki_log_dir }}
+
+[Install]
+WantedBy=multi-user.target

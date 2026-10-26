@@ -1,0 +1,20 @@
+---
+gitguardian_api_key: ""
+gitguardian_version: "1.56.0"
+gitguardian_package_name: ggshield
+gitguardian_install_root: /opt/ggshield
+gitguardian_virtualenv: "{{ gitguardian_install_root }}/venv"
+gitguardian_env_file: /etc/horus/ggshield.env
+gitguardian_config_file: /etc/horus/gitguardian.yml
+gitguardian_user: gitguardian
+gitguardian_group: gitguardian
+gitguardian_data_dir: /srv/horus/gitguardian
+gitguardian_scan_dir: "{{ gitguardian_data_dir }}/scans"
+gitguardian_ansible_tmp_dir: "{{ gitguardian_data_dir }}/.ansible/tmp"
+gitguardian_log_dir: /var/log/gitguardian
+gitguardian_log_file: "{{ gitguardian_log_dir }}/ggshield.log"
+gitguardian_upstream_binary: "{{ gitguardian_virtualenv }}/bin/ggshield"
+gitguardian_binary: /usr/local/bin/horus-ggshield
+gitguardian_pip_timeout: 120
+gitguardian_pip_retries: 10
+gitguardian_pip_resume_retries: 10

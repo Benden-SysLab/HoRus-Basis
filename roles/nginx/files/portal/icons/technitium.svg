@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Technitium DNS">
+  <path fill="none" stroke="#00c2ff" stroke-width="4" stroke-linejoin="round" d="M32 5 55 18v28L32 59 9 46V18Z"/>
+  <circle cx="32" cy="32" r="9" fill="none" stroke="#67e8f9" stroke-width="4"/>
+  <path stroke="#00c2ff" stroke-width="4" stroke-linecap="round" d="M32 14v9M32 41v9M14 32h9M41 32h9M19 19l7 7M38 38l7 7M45 19l-7 7M26 38l-7 7"/>
+</svg>

@@ -1,0 +1,15 @@
+[defaults]
+roles_path = {{ ansible_controller_roles_dir }}
+collections_path = {{ ansible_controller_collections_dir }}
+inventory = {{ ansible_controller_inventory_path }}
+local_tmp = ~/.ansible/tmp
+remote_tmp = ~/.ansible/tmp
+host_key_checking = True
+retry_files_enabled = False
+stdout_callback = default
+interpreter_python = auto_silent
+log_path = {{ ansible_controller_log_path }}
+
+[ssh_connection]
+pipelining = True
+ssh_args = -o UserKnownHostsFile={{ ansible_controller_known_hosts_path }} -o StrictHostKeyChecking=yes

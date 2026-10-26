@@ -1,0 +1,148 @@
+---
+- name: Install Wiki.js
+  hosts: wiki
+  become: true
+  vars:
+    keepass_master_password: "{{ hostvars['localhost'].horus_keepass_master_password }}"
+    wiki_postgres_user: >-
+      {{ lookup('keepass2', keepass_wiki_postgres_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='username') }}
+    wiki_postgres_password: >-
+      {{ lookup('keepass2', keepass_wiki_postgres_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    wiki_bootstrap_email: >-
+      {{ lookup('keepass2', keepass_wiki_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='username') }}
+    wiki_bootstrap_password: >-
+      {{ lookup('keepass2', keepass_wiki_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    wiki_oidc_client_secret: >-
+      {{ lookup('keepass2', keepass_wiki_oidc_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    access_admin_user: >-
+      {{ lookup('keepass2', keepass_access_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='username') }}
+    access_admin_password: >-
+      {{ lookup('keepass2', keepass_access_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    technitium_api_token: >-
+      {{ lookup('keepass2', keepass_technitium_token_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+  pre_tasks:
+    - name: Require KeePass database environment variable
+      ansible.builtin.assert:
+        that: keepass_database_path | length > 0
+        fail_msg: >-
+          HORUS_KEEPASS_DATABASE is empty. Export the WSL path to the KeePass
+          database before running this playbook.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Check KeePass database path on controller
+      ansible.builtin.stat:
+        path: "{{ keepass_database_path }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: wiki_keepass_database
+
+    - name: Require KeePass database on controller
+      ansible.builtin.assert:
+        that:
+          - wiki_keepass_database.stat.isreg | default(false)
+        fail_msg: >-
+          HORUS_KEEPASS_DATABASE does not point to a KeePass file:
+          {{ keepass_database_path | default('') }}
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Check Wiki.js KeePass helper on controller
+      ansible.builtin.stat:
+        path: "{{ inventory_dir }}/../scripts/wiki_keepass.py"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: wiki_keepass_helper
+
+    - name: Require Wiki.js KeePass helper on controller
+      ansible.builtin.assert:
+        that: wiki_keepass_helper.stat.isreg | default(false)
+        fail_msg: Wiki.js KeePass helper was not found in the repository scripts directory.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Ensure Wiki.js credentials exist in KeePass
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ inventory_dir }}/../scripts/wiki_keepass.py"
+          - ensure
+          - --database
+          - "{{ keepass_database_path }}"
+          - --postgres-entry
+          - "{{ keepass_wiki_postgres_entry }}"
+          - --bootstrap-entry
+          - "{{ keepass_wiki_bootstrap_entry }}"
+          - --oidc-entry
+          - "{{ keepass_wiki_oidc_entry }}"
+          - --postgres-user
+          - "{{ wiki_postgres_user }}"
+          - --bootstrap-user
+          - "{{ wiki_bootstrap_email }}"
+          - --oidc-user
+          - "{{ wiki_oidc_client_id }}"
+      environment:
+        HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: wiki_keepass_ensure
+      failed_when: false
+      changed_when: "'created=true' in wiki_keepass_ensure.stdout"
+      no_log: true
+
+    - name: Report Wiki.js KeePass helper failure
+      ansible.builtin.fail:
+        msg: >-
+          Wiki.js KeePass preparation failed:
+          {{ wiki_keepass_ensure.stderr | default('helper returned no error details') | trim }}
+      when: wiki_keepass_ensure.rc | default(1) != 0
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+  roles:
+    - wiki

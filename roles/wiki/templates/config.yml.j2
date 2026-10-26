@@ -1,0 +1,22 @@
+port: {{ wiki_http_port }}
+bindIP: 0.0.0.0
+
+db:
+  type: postgres
+  host: {{ wiki_postgres_host }}
+  port: {{ wiki_postgres_port }}
+  user: {{ wiki_postgres_user }}
+  pass: {{ wiki_postgres_password | to_json }}
+  db: {{ wiki_postgres_database }}
+  ssl: false
+  schema: public
+
+ssl:
+  enabled: false
+
+logLevel: info
+logFormat: json
+offline: false
+ha: false
+dataPath: {{ wiki_data_dir }}
+bodyParserLimit: 20mb

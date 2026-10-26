@@ -1,0 +1,36 @@
+---
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Stage 01 - NGINX foundation
+  ansible.builtin.import_playbook: stages/01_nginx.yml
+
+- name: Stage 02 - PostgreSQL foundation
+  ansible.builtin.import_playbook: 02_psql.yml
+
+- name: Stage 03 - Vault
+  ansible.builtin.import_playbook: 03_vault.yml
+
+- name: Stage 04 - Access management
+  ansible.builtin.import_playbook: stages/04_access.yml
+
+- name: Stage 05 - Gitea
+  ansible.builtin.import_playbook: stages/05_gitea.yml
+
+- name: Stage 06 - Wiki.js
+  ansible.builtin.import_playbook: stages/06_wiki.yml
+
+- name: Stage 07 - Vikunja
+  ansible.builtin.import_playbook: stages/07_vikunja.yml
+
+- name: Stage 08 - OCI registry
+  ansible.builtin.import_playbook: stages/08_registry.yml
+
+- name: Stage 09 - Jenkins controller
+  ansible.builtin.import_playbook: stages/09_jenkins.yml
+
+- name: Stage 10 - Jenkins agent
+  ansible.builtin.import_playbook: stages/10_agent.yml
+
+- name: Stage 11 - GitGuardian
+  ansible.builtin.import_playbook: stages/11_gitguardian.yml

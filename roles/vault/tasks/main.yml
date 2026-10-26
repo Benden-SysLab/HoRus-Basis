@@ -1,0 +1,28 @@
+---
+- name: Install Vault
+  ansible.builtin.include_tasks: install.yml
+- name: Prepare Vault PostgreSQL backend
+  ansible.builtin.include_tasks: database.yml
+- name: Configure Vault
+  ansible.builtin.include_tasks: config.yml
+- name: Install shared operator tools
+  ansible.builtin.include_role:
+    name: common_tools
+- name: Install and configure Fluent Bit
+  ansible.builtin.include_role:
+    name: fluent_bit
+- name: Apply pending Vault handlers
+  ansible.builtin.meta: flush_handlers
+- name: Initialize and unseal Vault
+  ansible.builtin.include_tasks: initialize.yml
+- name: Validate Vault
+  ansible.builtin.include_tasks: test.yml
+- name: Publish Vault in central DNS
+  ansible.builtin.include_role:
+    name: technitium_dns
+  vars:
+    technitium_dns_record_name: "{{ vault_public_hostname }}"
+    technitium_dns_record_address: "{{ horus_portal_dns_address }}"
+- name: Publish Vault through NGINX
+  ansible.builtin.include_tasks: publish.yml
+

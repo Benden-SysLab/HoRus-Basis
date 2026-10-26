@@ -1,0 +1,209 @@
+---
+- name: Read HoRus internal TLS certificate
+  ansible.builtin.slurp:
+    src: "{{ gitea_nginx_tls_certificate }}"
+  delegate_to: "{{ gitea_nginx_host }}"
+  register: gitea_internal_ca
+  no_log: true
+
+- name: Trust HoRus internal TLS certificate on Gitea host
+  ansible.builtin.copy:
+    dest: /usr/local/share/ca-certificates/horus-admin.crt
+    content: "{{ gitea_internal_ca.content | b64decode }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: gitea_internal_ca_installed
+  no_log: true
+
+- name: Refresh Gitea host certificate trust
+  ansible.builtin.command: update-ca-certificates
+  when: gitea_internal_ca_installed.changed
+
+- name: Authenticate Keycloak administration CLI
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - config
+      - credentials
+      - --config
+      - /tmp/horus-gitea-kcadm.config
+      - --server
+      - "{{ gitea_keycloak_url }}"
+      - --realm
+      - master
+      - --user
+      - "{{ access_admin_user }}"
+      - --password
+      - "{{ access_admin_password }}"
+  delegate_to: "{{ gitea_keycloak_host }}"
+  changed_when: false
+  no_log: true
+
+- name: Check HoRus Keycloak realm
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - get
+      - "realms/{{ gitea_oidc_realm }}"
+      - --config
+      - /tmp/horus-gitea-kcadm.config
+  delegate_to: "{{ gitea_keycloak_host }}"
+  register: gitea_keycloak_realm_state
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Create HoRus Keycloak realm
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - create
+      - realms
+      - --config
+      - /tmp/horus-gitea-kcadm.config
+      - -s
+      - "realm={{ gitea_oidc_realm }}"
+      - -s
+      - enabled=true
+      - -s
+      - displayName=HoRus
+  delegate_to: "{{ gitea_keycloak_host }}"
+  when: gitea_keycloak_realm_state.rc != 0
+  no_log: true
+
+- name: Read Gitea Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - get
+      - clients
+      - --config
+      - /tmp/horus-gitea-kcadm.config
+      - -r
+      - "{{ gitea_oidc_realm }}"
+      - -q
+      - "clientId={{ gitea_oidc_client_id }}"
+  delegate_to: "{{ gitea_keycloak_host }}"
+  register: gitea_keycloak_clients
+  changed_when: false
+  no_log: true
+
+- name: Select Gitea Keycloak client identifier
+  ansible.builtin.set_fact:
+    gitea_keycloak_client_uuid: >-
+      {{ ((gitea_keycloak_clients.stdout | from_json | first).id)
+         if (gitea_keycloak_clients.stdout | from_json | length > 0) else '' }}
+  no_log: true
+
+- name: Create Gitea Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - create
+      - clients
+      - --config
+      - /tmp/horus-gitea-kcadm.config
+      - -r
+      - "{{ gitea_oidc_realm }}"
+      - -s
+      - "clientId={{ gitea_oidc_client_id }}"
+      - -s
+      - name=Gitea
+      - -s
+      - enabled=true
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - "secret={{ gitea_oidc_client_secret }}"
+      - -s
+      - "redirectUris=[\"{{ gitea_oidc_redirect_uri }}\"]"
+      - -s
+      - "webOrigins=[\"{{ gitea_public_url | regex_replace('/$', '') }}\"]"
+  delegate_to: "{{ gitea_keycloak_host }}"
+  when: gitea_keycloak_client_uuid | length == 0
+  no_log: true
+
+- name: Update Gitea Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - update
+      - "clients/{{ gitea_keycloak_client_uuid }}"
+      - --config
+      - /tmp/horus-gitea-kcadm.config
+      - -r
+      - "{{ gitea_oidc_realm }}"
+      - -s
+      - enabled=true
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - "secret={{ gitea_oidc_client_secret }}"
+      - -s
+      - "redirectUris=[\"{{ gitea_oidc_redirect_uri }}\"]"
+      - -s
+      - "webOrigins=[\"{{ gitea_public_url | regex_replace('/$', '') }}\"]"
+  delegate_to: "{{ gitea_keycloak_host }}"
+  when: gitea_keycloak_client_uuid | length > 0
+  changed_when: false
+  no_log: true
+
+- name: Remove temporary Keycloak CLI session
+  ansible.builtin.file:
+    path: /tmp/horus-gitea-kcadm.config
+    state: absent
+  delegate_to: "{{ gitea_keycloak_host }}"
+  no_log: true
+
+- name: Read Gitea authentication sources
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ gitea_system_user }}"
+      - --
+      - "{{ gitea_binary_path }}"
+      - admin
+      - auth
+      - list
+      - --config
+      - "{{ gitea_config_path }}"
+  register: gitea_auth_sources
+  changed_when: false
+
+- name: Add HoRus OpenID Connect authentication source
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ gitea_system_user }}"
+      - --
+      - "{{ gitea_binary_path }}"
+      - admin
+      - auth
+      - add-oauth
+      - --config
+      - "{{ gitea_config_path }}"
+      - --name
+      - "{{ gitea_oidc_name }}"
+      - --provider
+      - openidConnect
+      - --key
+      - "{{ gitea_oidc_client_id }}"
+      - --secret
+      - "{{ gitea_oidc_client_secret }}"
+      - --auto-discover-url
+      - "{{ gitea_oidc_discovery_url }}"
+      - --scopes
+      - email profile
+  when: gitea_oidc_name not in gitea_auth_sources.stdout
+  no_log: true

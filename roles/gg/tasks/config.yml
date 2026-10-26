@@ -1,0 +1,39 @@
+---
+- name: Create Horus configuration directory
+  ansible.builtin.file:
+    path: "{{ gitguardian_env_file | dirname }}"
+    state: directory
+    owner: root
+    group: "{{ gitguardian_group }}"
+    mode: "0750"
+
+- name: Create GitGuardian runtime directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ gitguardian_user }}"
+    group: "{{ gitguardian_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ gitguardian_data_dir }}", mode: "0750"}
+    - {path: "{{ gitguardian_scan_dir }}", mode: "0750"}
+    - {path: "{{ gitguardian_ansible_tmp_dir }}", mode: "0700"}
+    - {path: "{{ gitguardian_log_dir }}", mode: "0750"}
+
+- name: Install ggshield runtime credentials
+  ansible.builtin.template:
+    src: ggshield.env.j2
+    dest: "{{ gitguardian_env_file }}"
+    owner: root
+    group: "{{ gitguardian_group }}"
+    mode: "0640"
+  no_log: true
+
+- name: Install ggshield configuration
+  ansible.builtin.template:
+    src: gitguardian.yml.j2
+    dest: "{{ gitguardian_config_file }}"
+    owner: root
+    group: "{{ gitguardian_group }}"
+    mode: "0640"
+

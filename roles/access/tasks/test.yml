@@ -1,0 +1,20 @@
+---
+- name: Check Keycloak service
+  ansible.builtin.command: systemctl is-active {{ access_service_name }}
+  register: access_service_state
+  changed_when: false
+
+- name: Require Keycloak service to be active
+  ansible.builtin.assert:
+    that: access_service_state.stdout | trim == 'active'
+
+- name: Check local Keycloak discovery endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ access_http_port }}/realms/master/.well-known/openid-configuration"
+    status_code: 200
+  register: access_discovery
+
+- name: Require Keycloak issuer to use the public address
+  ansible.builtin.assert:
+    that:
+      - access_discovery.json.issuer == 'https://' ~ access_public_hostname ~ '/realms/master'

@@ -1,0 +1,188 @@
+---
+- name: Authenticate Keycloak administration CLI for personal account
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - config
+      - credentials
+      - --config
+      - "{{ access_personal_kcadm_config }}"
+      - --server
+      - "http://127.0.0.1:{{ access_http_port }}"
+      - --realm
+      - master
+      - --user
+      - "{{ access_admin_user }}"
+      - --password
+      - "{{ access_admin_password }}"
+  changed_when: false
+  no_log: true
+
+- name: Read personal Access account
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - get
+      - users
+      - --config
+      - "{{ access_personal_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+      - -q
+      - "username={{ access_personal_user }}"
+  register: access_personal_users
+  changed_when: false
+  no_log: true
+
+- name: Create personal Access account
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - create
+      - users
+      - --config
+      - "{{ access_personal_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+      - -s
+      - "username={{ access_personal_user }}"
+      - -s
+      - "email={{ access_personal_email }}"
+      - -s
+      - enabled=true
+      - -s
+      - emailVerified=true
+  when: access_personal_users.stdout | from_json | length == 0
+  no_log: true
+
+- name: Read created personal Access account
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - get
+      - users
+      - --config
+      - "{{ access_personal_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+      - -q
+      - "username={{ access_personal_user }}"
+  register: access_personal_users_final
+  changed_when: false
+  no_log: true
+
+- name: Require exactly one personal Access account
+  ansible.builtin.assert:
+    that: access_personal_users_final.stdout | from_json | length == 1
+    fail_msg: >-
+      Expected exactly one {{ access_personal_user }} account in realm
+      {{ access_realm }}.
+
+- name: Select personal Access account identifier
+  ansible.builtin.set_fact:
+    access_personal_user_uuid: >-
+      {{ (access_personal_users_final.stdout | from_json | first).id }}
+  no_log: true
+
+- name: Keep personal Access account enabled and current
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - update
+      - "users/{{ access_personal_user_uuid }}"
+      - --config
+      - "{{ access_personal_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+      - -s
+      - "email={{ access_personal_email }}"
+      - -s
+      - enabled=true
+      - -s
+      - emailVerified=true
+  changed_when: false
+  no_log: true
+
+- name: Set personal Access account password from KeePass
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - set-password
+      - --config
+      - "{{ access_personal_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+      - --username
+      - "{{ access_personal_user }}"
+      - --new-password
+      - "{{ access_personal_password }}"
+  changed_when: false
+  no_log: true
+
+- name: Read realm-management client
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - get
+      - clients
+      - --config
+      - "{{ access_personal_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+      - -q
+      - clientId=realm-management
+  register: access_realm_management_clients
+  changed_when: false
+  no_log: true
+
+- name: Require realm-management client
+  ansible.builtin.assert:
+    that: access_realm_management_clients.stdout | from_json | length == 1
+    fail_msg: >-
+      The realm-management client was not found in realm {{ access_realm }}.
+
+- name: Select realm-management client identifier
+  ansible.builtin.set_fact:
+    access_realm_management_client_uuid: >-
+      {{ (access_realm_management_clients.stdout | from_json | first).id }}
+  no_log: true
+
+- name: Read personal Access account client roles
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - get
+      - "users/{{ access_personal_user_uuid }}/role-mappings/clients/{{ access_realm_management_client_uuid }}"
+      - --config
+      - "{{ access_personal_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+  register: access_personal_client_roles
+  changed_when: false
+  no_log: true
+
+- name: Grant personal Access realm administrator role
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - add-roles
+      - --config
+      - "{{ access_personal_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+      - --uusername
+      - "{{ access_personal_user }}"
+      - --cclientid
+      - realm-management
+      - --rolename
+      - "{{ access_personal_admin_role }}"
+  when: >-
+    access_personal_admin_role not in
+    (access_personal_client_roles.stdout | from_json | map(attribute='name') | list)
+  no_log: true
+
+- name: Remove personal Access administration CLI session
+  ansible.builtin.file:
+    path: "{{ access_personal_kcadm_config }}"
+    state: absent
+  no_log: true

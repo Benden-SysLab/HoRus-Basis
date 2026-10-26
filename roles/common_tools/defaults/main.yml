@@ -1,0 +1,19 @@
+---
+
+common_tools_packages:
+  - curl
+  - btop
+  - jq
+  - vim
+  - git
+  - ca-certificates
+  - dnsutils
+  - iproute2
+  - iputils-ping
+  - procps
+  - psmisc
+  - rsync
+  - tmux
+  - unzip
+
+

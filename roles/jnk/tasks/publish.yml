@@ -1,0 +1,40 @@
+---
+- name: Install Jenkins NGINX service block
+  ansible.builtin.template:
+    src: nginx/70_jenkins.conf.j2
+    dest: "{{ jenkins_nginx_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  delegate_to: "{{ jenkins_nginx_host }}"
+  register: jenkins_nginx_block
+
+- name: Install Jenkins dashboard manifest
+  ansible.builtin.template:
+    src: nginx/jenkins.json.j2
+    dest: "{{ jenkins_nginx_manifest_path }}"
+    owner: root
+    group: www-data
+    mode: "0644"
+  delegate_to: "{{ jenkins_nginx_host }}"
+
+- name: Validate NGINX after publishing Jenkins
+  ansible.builtin.command: nginx -t
+  delegate_to: "{{ jenkins_nginx_host }}"
+  changed_when: false
+
+- name: Reload NGINX after publishing Jenkins
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: reloaded
+  delegate_to: "{{ jenkins_nginx_host }}"
+  when: jenkins_nginx_block.changed
+
+- name: Check Jenkins through NGINX
+  ansible.builtin.uri:
+    url: https://127.0.0.1/login
+    headers:
+      Host: "{{ jenkins_public_hostname }}"
+    validate_certs: false
+    status_code: [200, 302, 403]
+  delegate_to: "{{ jenkins_nginx_host }}"

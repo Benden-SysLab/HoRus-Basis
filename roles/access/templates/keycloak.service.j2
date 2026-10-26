@@ -1,0 +1,22 @@
+[Unit]
+Description=HoRus Access Management (Keycloak)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ access_system_user }}
+Group={{ access_system_group }}
+WorkingDirectory={{ access_current_dir }}
+EnvironmentFile={{ access_environment_path }}
+EnvironmentFile=-{{ access_bootstrap_env_path }}
+ExecStart={{ access_current_dir }}/bin/kc.sh start --optimized --server-async-bootstrap=false
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=180s
+LimitNOFILE=65536
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

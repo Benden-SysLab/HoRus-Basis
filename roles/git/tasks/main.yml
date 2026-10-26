@@ -1,0 +1,43 @@
+---
+- name: Require Gitea credentials
+  ansible.builtin.assert:
+    that:
+      - gitea_postgres_user == 'gitea'
+      - gitea_postgres_password | length > 0
+      - gitea_bootstrap_user | length > 0
+      - gitea_bootstrap_password | length > 0
+      - gitea_oidc_client_secret | length > 0
+      - gitea_internal_token | length > 0
+      - gitea_secret_key | length > 0
+      - gitea_lfs_jwt_secret | length > 0
+      - gitea_oauth2_jwt_secret | length > 0
+    fail_msg: Required Gitea credentials are missing from KeePass.
+  no_log: true
+
+- name: Install Gitea components
+  ansible.builtin.include_tasks: install.yml
+- name: Prepare Gitea PostgreSQL database
+  ansible.builtin.include_tasks: database.yml
+- name: Configure Gitea
+  ansible.builtin.include_tasks: config.yml
+- name: Install shared operator tools
+  ansible.builtin.include_role:
+    name: common_tools
+- name: Install and configure Fluent Bit
+  ansible.builtin.include_role:
+    name: fluent_bit
+- name: Apply pending Gitea handlers
+  ansible.builtin.meta: flush_handlers
+- name: Configure Gitea single sign-on
+  ansible.builtin.include_tasks: oidc.yml
+- name: Publish Gitea in central DNS
+  ansible.builtin.include_role:
+    name: technitium_dns
+  vars:
+    technitium_dns_record_name: "{{ gitea_public_hostname }}"
+    technitium_dns_record_address: "{{ horus_portal_dns_address }}"
+- name: Publish Gitea through NGINX
+  ansible.builtin.include_tasks: publish.yml
+- name: Validate Gitea
+  ansible.builtin.include_tasks: test.yml
+

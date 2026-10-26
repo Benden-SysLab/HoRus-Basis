@@ -1,0 +1,24 @@
+---
+- name: Check Registry service
+  ansible.builtin.command: systemctl is-active {{ registry_service_name }}
+  register: registry_service_state
+  changed_when: false
+
+- name: Require Registry service to be active
+  ansible.builtin.assert:
+    that: registry_service_state.stdout | trim == 'active'
+
+- name: Check local OCI Registry endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ registry_http_port }}/v2/"
+    status_code: [200, 401]
+
+- name: Check public Registry endpoint through NGINX
+  ansible.builtin.uri:
+    url: https://127.0.0.1/v2/
+    headers:
+      Host: "{{ registry_public_hostname }}"
+    validate_certs: false
+    status_code: [200, 401]
+  delegate_to: "{{ registry_nginx_host }}"
+

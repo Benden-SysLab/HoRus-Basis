@@ -1,0 +1,48 @@
+{
+  "distSpecVersion": "1.1.0",
+  "storage": {
+    "rootDirectory": {{ registry_data_dir | to_json }}
+  },
+  "http": {
+    "address": "0.0.0.0",
+    "port": {{ registry_http_port | string | to_json }},
+    "externalUrl": {{ registry_public_url | to_json }},
+    "auth": {
+      "openid": {
+        "providers": {
+          {{ registry_oidc_provider | to_json }}: {
+            "name": "HoRus Access",
+            "issuer": {{ registry_oidc_issuer | to_json }},
+            "credentialsFile": {{ registry_oidc_credentials_path | to_json }},
+            "scopes": ["openid", "profile", "email"]
+          }
+        }
+      }
+    },
+    "accessControl": {
+      "repositories": {
+        "**": {
+          "policies": [
+            {
+              "users": [{{ registry_admin_user | to_json }}],
+              "actions": ["read", "create", "update", "delete"]
+            }
+          ],
+          "defaultPolicy": []
+        }
+      },
+      "adminPolicy": {
+        "users": [{{ registry_admin_user | to_json }}],
+        "actions": ["read", "create", "update", "delete"]
+      }
+    }
+  },
+  "log": {
+    "level": "info",
+    "output": {{ registry_log_path | to_json }}
+  },
+  "extensions": {
+    "search": {"enable": true},
+    "ui": {"enable": true}
+  }
+}

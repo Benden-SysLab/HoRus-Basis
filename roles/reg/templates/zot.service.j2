@@ -1,0 +1,22 @@
+[Unit]
+Description=HoRus OCI Registry (Zot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ registry_system_user }}
+Group={{ registry_system_group }}
+WorkingDirectory={{ registry_data_dir }}
+ExecStart={{ registry_binary_path }} serve {{ registry_config_path }}
+Restart=on-failure
+RestartSec=5s
+Environment=HOME={{ registry_data_dir }}
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ registry_data_dir }} {{ registry_log_dir }}
+
+[Install]
+WantedBy=multi-user.target

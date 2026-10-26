@@ -1,0 +1,45 @@
+---
+
+- name: Validate NGINX configuration
+  ansible.builtin.command: nginx -t -c "{{ nginx_config_path }}"
+  changed_when: false
+
+- name: Check local NGINX health endpoint
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ nginx_listen_port }}/healthz"
+    status_code: 200
+    return_content: false
+    validate_certs: false
+
+- name: Check HoRus dashboard
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ nginx_listen_port }}/"
+    status_code: 200
+    return_content: true
+    validate_certs: false
+  register: nginx_dashboard
+
+- name: Require HoRus dashboard marker
+  ansible.builtin.assert:
+    that: "'HoRus Control Plane' in nginx_dashboard.content"
+
+- name: Check HoRus portal service icons
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:{{ nginx_listen_port }}/icons/{{ item }}"
+    status_code: 200
+    return_content: true
+    validate_certs: false
+  loop: "{{ nginx_portal_required_icons }}"
+  register: nginx_portal_icon_checks
+
+- name: Require valid HoRus portal SVG icons
+  ansible.builtin.assert:
+    that:
+      - item.status == 200
+      - "'<svg' in item.content"
+    fail_msg: "Portal icon {{ item.item }} is missing or is not SVG."
+  loop: "{{ nginx_portal_icon_checks.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+

@@ -1,0 +1,24 @@
+---
+- name: Check Jenkins service
+  ansible.builtin.command: systemctl is-active jenkins
+  register: jenkins_service_state
+  changed_when: false
+
+- name: Require Jenkins service to be active
+  ansible.builtin.assert:
+    that: jenkins_service_state.stdout | trim == 'active'
+
+- name: Check local Jenkins endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ jenkins_http_port }}/login"
+    status_code: [200, 302, 403]
+
+- name: Check public Jenkins endpoint
+  ansible.builtin.uri:
+    url: https://127.0.0.1/login
+    headers:
+      Host: "{{ jenkins_public_hostname }}"
+    validate_certs: false
+    status_code: [200, 302, 403]
+  delegate_to: "{{ jenkins_nginx_host }}"
+

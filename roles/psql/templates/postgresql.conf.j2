@@ -1,0 +1,22 @@
+# Managed by HoRus-Basis.
+data_directory = '{{ postgresql_data_directory }}'
+hba_file = '{{ postgresql_config_directory }}/pg_hba.conf'
+listen_addresses = '{{ postgresql_listen_addresses }}'
+port = {{ postgresql_port }}
+unix_socket_directories = '/var/run/postgresql'
+password_encryption = 'scram-sha-256'
+shared_preload_libraries = '{{ postgresql_shared_preload_libraries }}'
+pg_stat_statements.max = {{ postgresql_pg_stat_statements_max }}
+pg_stat_statements.track = '{{ postgresql_pg_stat_statements_track }}'
+max_connections = 50
+shared_buffers = 256MB
+logging_collector = on
+log_destination = 'jsonlog'
+log_directory = '/var/log/postgresql'
+log_filename = '{{ postgresql_json_log_prefix }}-17-horus-%Y-%m-%d_%H%M%S.json'
+log_connections = on
+log_disconnections = on
+log_min_duration_statement = 1000
+log_timezone = '{{ postgresql_timezone }}'
+timezone = '{{ postgresql_timezone }}'
+

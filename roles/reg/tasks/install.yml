@@ -1,0 +1,59 @@
+---
+- name: Install Registry operating system dependencies
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+    state: present
+    update_cache: true
+
+- name: Create Registry system group
+  ansible.builtin.group:
+    name: "{{ registry_system_group }}"
+    system: true
+
+- name: Create Registry system account
+  ansible.builtin.user:
+    name: "{{ registry_system_user }}"
+    group: "{{ registry_system_group }}"
+    home: "{{ registry_data_dir }}"
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Create Registry directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ registry_config_dir }}", owner: root, group: "{{ registry_system_group }}", mode: "0750"}
+    - {path: "{{ registry_data_dir }}", owner: "{{ registry_system_user }}", group: "{{ registry_system_group }}", mode: "0750"}
+    - {path: "{{ registry_log_dir }}", owner: "{{ registry_system_user }}", group: "{{ registry_system_group }}", mode: "0750"}
+
+- name: Download pinned Zot Registry binary
+  ansible.builtin.get_url:
+    url: "{{ registry_binary_url }}"
+    dest: "{{ registry_binary_path }}"
+    checksum: "{{ registry_binary_checksum }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart Registry
+
+- name: Read installed Zot version
+  ansible.builtin.command:
+    argv: ["{{ registry_binary_path }}", --version]
+  register: registry_installed_version
+  changed_when: false
+
+- name: Require pinned Zot version
+  ansible.builtin.assert:
+    that: >-
+      registry_version in
+      ((registry_installed_version.stdout | default('')) ~
+       (registry_installed_version.stderr | default('')))
+    fail_msg: The installed Zot binary does not match the pinned version.
+

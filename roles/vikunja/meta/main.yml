@@ -1,0 +1,7 @@
+---
+galaxy_info:
+  role_name: vikunja
+  author: HoRus
+  description: Install and publish Vikunja task management.
+  min_ansible_version: "2.16"
+dependencies: []

@@ -1,0 +1,48 @@
+---
+
+- name: Check PostgreSQL cluster service
+  ansible.builtin.command: systemctl is-active {{ postgresql_service_name }}
+  register: postgresql_service_state
+  changed_when: false
+
+- name: Require PostgreSQL cluster to be active
+  ansible.builtin.assert:
+    that: postgresql_service_state.stdout | trim == 'active'
+
+- name: Enable pg_stat_statements in the administrative database
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -X
+      - -v
+      - ON_ERROR_STOP=1
+      - -d
+      - postgres
+      - -c
+      - CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+  changed_when: false
+
+- name: Check PostgreSQL local query
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -X
+      - -A
+      - -t
+      - -v
+      - ON_ERROR_STOP=1
+      - -d
+      - postgres
+      - -c
+      - SELECT version();
+  changed_when: false
+
+

@@ -1,0 +1,229 @@
+---
+- name: Trust the verified Jenkins host key
+  hosts: jenkins
+  gather_facts: false
+  become: false
+  connection: local
+  vars:
+    ansible_become: false
+    jenkins_inventory_host: "{{ inventory_hostname }}"
+    jenkins_target_address: "{{ ansible_host }}"
+    jenkins_expected_fingerprint: "{{ horus_ssh_ed25519_fingerprint }}"
+    jenkins_known_hosts_path: "{{ lookup('ansible.builtin.env', 'HOME') }}/.ssh/known_hosts"
+  tasks:
+    - name: Create controller SSH directory
+      ansible.builtin.file:
+        path: "{{ jenkins_known_hosts_path | dirname }}"
+        state: directory
+        mode: "0700"
+
+    - name: Read current Jenkins ED25519 host key
+      ansible.builtin.command:
+        argv:
+          - ssh-keyscan
+          - -T
+          - "5"
+          - -t
+          - ed25519
+          - "{{ jenkins_target_address }}"
+      register: jenkins_scanned_host_key
+      changed_when: false
+
+    - name: Require a Jenkins ED25519 host key
+      ansible.builtin.assert:
+        that: jenkins_scanned_host_key.stdout | trim | length > 0
+        fail_msg: >-
+          No ED25519 SSH host key was returned by {{ jenkins_target_address }}.
+
+    - name: Calculate Jenkins host key fingerprint
+      ansible.builtin.command:
+        argv:
+          - ssh-keygen
+          - -l
+          - -f
+          - /dev/stdin
+          - -E
+          - sha256
+        stdin: "{{ jenkins_scanned_host_key.stdout }}"
+      register: jenkins_scanned_fingerprint
+      changed_when: false
+
+    - name: Require the approved Jenkins host fingerprint
+      ansible.builtin.assert:
+        that: >-
+          jenkins_expected_fingerprint in jenkins_scanned_fingerprint.stdout
+        fail_msg: >-
+          REFUSING SSH host key replacement for {{ jenkins_target_address }}.
+          Expected {{ jenkins_expected_fingerprint }}, received
+          {{ jenkins_scanned_fingerprint.stdout | trim }}.
+
+    - name: Remove stale Jenkins host key entries
+      ansible.builtin.known_hosts:
+        path: "{{ jenkins_known_hosts_path }}"
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ jenkins_target_address }}"
+        - "{{ jenkins_inventory_host }}"
+
+    - name: Install verified Jenkins host key
+      ansible.builtin.known_hosts:
+        path: "{{ jenkins_known_hosts_path }}"
+        name: "{{ jenkins_target_address }}"
+        key: "{{ jenkins_scanned_host_key.stdout }}"
+        state: present
+
+- name: Install Jenkins controller
+  hosts: jenkins
+  become: true
+  vars:
+    keepass_master_password: "{{ hostvars['localhost'].horus_keepass_master_password }}"
+    jenkins_oidc_client_secret: >-
+      {{ lookup('keepass2', keepass_jenkins_oidc_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    jenkins_recovery_password: >-
+      {{ lookup('keepass2', keepass_jenkins_recovery_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    access_admin_user: >-
+      {{ lookup('keepass2', keepass_access_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='username') }}
+    access_admin_password: >-
+      {{ lookup('keepass2', keepass_access_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    technitium_api_token: >-
+      {{ lookup('keepass2', keepass_technitium_token_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+  pre_tasks:
+    - name: Check Jenkins KeePass helper
+      ansible.builtin.stat:
+        path: "{{ inventory_dir }}/../scripts/jenkins_keepass.py"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+      register: jenkins_keepass_helper
+
+    - name: Require Jenkins KeePass helper
+      ansible.builtin.assert:
+        that: jenkins_keepass_helper.stat.isreg | default(false)
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+
+    - name: Ensure Jenkins secrets exist in KeePass
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ inventory_dir }}/../scripts/jenkins_keepass.py"
+          - ensure
+          - --database
+          - "{{ keepass_database_path }}"
+          - --oidc-entry
+          - "{{ keepass_jenkins_oidc_entry }}"
+          - --recovery-entry
+          - "{{ keepass_jenkins_recovery_entry }}"
+      environment:
+        HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+      register: jenkins_keepass_ensure
+      failed_when: false
+      changed_when: "'created=true' in jenkins_keepass_ensure.stdout"
+      no_log: true
+
+    - name: Report Jenkins KeePass helper failure
+      ansible.builtin.fail:
+        msg: >-
+          Jenkins KeePass preparation failed:
+          {{ jenkins_keepass_ensure.stderr | default('helper returned no details') | trim }}
+      when: jenkins_keepass_ensure.rc | default(1) != 0
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+
+    - name: Check Jenkins gateway private key source
+      ansible.builtin.stat:
+        path: "{{ hostvars['horus-gw-node01'].gateway_private_key_source }}"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+      register: jenkins_gateway_key_source
+
+    - name: Require Jenkins gateway private key source
+      ansible.builtin.assert:
+        that: jenkins_gateway_key_source.stat.isreg | default(false)
+        fail_msg: >-
+          Gateway SSH key was not found at
+          {{ hostvars['horus-gw-node01'].gateway_private_key_source }}.
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+
+    - name: Create Jenkins controller SSH key directory
+      ansible.builtin.file:
+        path: "{{ hostvars['horus-gw-node01'].ansible_private_key_file | dirname }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+
+    - name: Stage gateway private key for Jenkins policy
+      ansible.builtin.copy:
+        src: "{{ hostvars['horus-gw-node01'].gateway_private_key_source }}"
+        dest: "{{ hostvars['horus-gw-node01'].ansible_private_key_file }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+      no_log: true
+
+    - name: Install Jenkins gateway policy scripts
+      ansible.builtin.copy:
+        src: "{{ inventory_dir }}/../scripts/{{ item }}"
+        dest: "/tmp/{{ item }}"
+        owner: root
+        group: root
+        mode: "0700"
+      loop:
+        - apply_jenkins_gateway_access.sh
+        - commit_jenkins_gateway_access.sh
+      delegate_to: horus-gw-node01
+      run_once: true
+
+    - name: Apply rollback-protected Jenkins gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/apply_jenkins_gateway_access.sh]
+      delegate_to: horus-gw-node01
+      run_once: true
+      register: jenkins_gateway_policy
+      changed_when: "'APPLY_OK' in jenkins_gateway_policy.stdout"
+
+  roles:
+    - jnk
+
+  post_tasks:
+    - name: Commit verified Jenkins gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/commit_jenkins_gateway_access.sh]
+      delegate_to: horus-gw-node01
+      run_once: true
+      changed_when: jenkins_gateway_policy.changed

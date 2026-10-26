@@ -1,0 +1,40 @@
+---
+- name: Install Gitea NGINX service block
+  ansible.builtin.template:
+    src: nginx/50_gitea.conf.j2
+    dest: "{{ gitea_nginx_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  delegate_to: "{{ gitea_nginx_host }}"
+  register: gitea_nginx_block
+
+- name: Install Gitea dashboard manifest
+  ansible.builtin.template:
+    src: nginx/gitea.json.j2
+    dest: "{{ gitea_nginx_manifest_path }}"
+    owner: root
+    group: www-data
+    mode: "0644"
+  delegate_to: "{{ gitea_nginx_host }}"
+
+- name: Validate NGINX after publishing Gitea
+  ansible.builtin.command: nginx -t
+  delegate_to: "{{ gitea_nginx_host }}"
+  changed_when: false
+
+- name: Reload NGINX after publishing Gitea
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: reloaded
+  delegate_to: "{{ gitea_nginx_host }}"
+  when: gitea_nginx_block.changed
+
+- name: Check Gitea through NGINX
+  ansible.builtin.uri:
+    url: https://127.0.0.1/api/healthz
+    headers:
+      Host: "{{ gitea_public_hostname }}"
+    validate_certs: false
+    status_code: 200
+  delegate_to: "{{ gitea_nginx_host }}"

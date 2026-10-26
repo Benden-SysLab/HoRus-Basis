@@ -1,0 +1,6 @@
+---
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Stage 06 - Wiki.js
+  ansible.builtin.import_playbook: stages/06_wiki.yml

@@ -1,0 +1,3 @@
+---
+# Gitea writes structured service logs to gitea_log_dir. Fluent Bit owns shipping.
+

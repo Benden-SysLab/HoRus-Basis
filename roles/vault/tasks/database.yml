@@ -1,0 +1,104 @@
+---
+
+- name: Check Vault PostgreSQL role
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -A, -t, -d, postgres, -c, "SELECT 1 FROM pg_roles WHERE rolname='vault';"]
+  delegate_to: horus-db-srv03
+  register: vault_role_exists
+  changed_when: false
+
+- name: Create Vault PostgreSQL role
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, postgres, -c, "CREATE ROLE vault LOGIN;"]
+  delegate_to: horus-db-srv03
+  when: vault_role_exists.stdout | trim != '1'
+
+- name: Set Vault PostgreSQL password
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -X
+      - -v
+      - ON_ERROR_STOP=1
+      - -d
+      - postgres
+    stdin: |-
+      \getenv vault_password VAULT_POSTGRES_PASSWORD
+      ALTER ROLE vault PASSWORD :'vault_password';
+    stdin_add_newline: true
+  environment:
+    VAULT_POSTGRES_PASSWORD: "{{ vault_postgres_password }}"
+  delegate_to: horus-db-srv03
+  changed_when: false
+  no_log: true
+
+- name: Check Vault PostgreSQL database
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -A, -t, -d, postgres, -c, "SELECT 1 FROM pg_database WHERE datname='vault';"]
+  delegate_to: horus-db-srv03
+  register: vault_database_exists
+  changed_when: false
+
+- name: Create Vault PostgreSQL database
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, createdb, -O, vault, vault]
+  delegate_to: horus-db-srv03
+  when: vault_database_exists.stdout | trim != '1'
+
+- name: Restrict Vault database connection privileges
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -X
+      - -v
+      - ON_ERROR_STOP=1
+      - -d
+      - postgres
+    stdin: |-
+      REVOKE CONNECT ON DATABASE vault FROM PUBLIC;
+      GRANT CONNECT ON DATABASE vault TO vault;
+    stdin_add_newline: true
+  delegate_to: horus-db-srv03
+  changed_when: false
+
+- name: Install Vault PostgreSQL schema
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -X
+      - -v
+      - ON_ERROR_STOP=1
+      - -d
+      - vault
+      - -c
+      - >-
+        CREATE TABLE IF NOT EXISTS vault_kv_store
+        (parent_path TEXT COLLATE "C" NOT NULL,
+        path TEXT COLLATE "C", key TEXT COLLATE "C", value BYTEA,
+        CONSTRAINT vault_kv_store_pkey PRIMARY KEY (path, key));
+        CREATE INDEX IF NOT EXISTS parent_path_idx ON vault_kv_store (parent_path);
+        ALTER TABLE vault_kv_store OWNER TO vault;
+  delegate_to: horus-db-srv03
+  changed_when: false
+
+- name: Verify Vault database login from Vault host
+  ansible.builtin.command:
+    argv: [psql, -h, "{{ vault_postgres_host }}", -p, "{{ vault_postgres_port }}", -U, vault, -d, vault, -X, -A, -t, -c, "SELECT current_user;"]
+  environment:
+    PGPASSWORD: "{{ vault_postgres_password }}"
+  register: vault_database_login
+  changed_when: false
+  no_log: true
+

@@ -1,0 +1,47 @@
+server {
+    listen 80 default_server;
+    server_name _;
+    return 301 https://{{ nginx_server_name }}$request_uri;
+}
+
+server {
+    listen {{ nginx_listen_address }}:{{ nginx_listen_port }} ssl default_server;
+    server_name {{ nginx_server_name }} _;
+
+    ssl_certificate {{ nginx_tls_certificate }};
+    ssl_certificate_key {{ nginx_tls_key }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:HORUS:10m;
+    ssl_session_timeout 10m;
+
+    root {{ nginx_portal_root }};
+    index index.html;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location = /portal-services/ {
+        alias {{ nginx_portal_services_dir }}/;
+        autoindex on;
+        autoindex_format json;
+        default_type application/json;
+    }
+
+    location /portal-services/ {
+        alias {{ nginx_portal_services_dir }}/;
+        default_type application/json;
+    }
+
+    location /icons/ {
+        alias {{ nginx_portal_icons_dir }}/;
+        add_header Cache-Control "no-cache" always;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+

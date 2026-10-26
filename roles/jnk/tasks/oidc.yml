@@ -1,0 +1,133 @@
+---
+- name: Read HoRus internal TLS certificate for Jenkins
+  ansible.builtin.slurp:
+    src: "{{ jenkins_nginx_tls_certificate }}"
+  delegate_to: "{{ jenkins_nginx_host }}"
+  register: jenkins_internal_ca
+  no_log: true
+
+- name: Trust HoRus internal TLS certificate on Jenkins
+  ansible.builtin.copy:
+    content: "{{ jenkins_internal_ca.content | b64decode }}"
+    dest: /usr/local/share/ca-certificates/horus-admin.crt
+    owner: root
+    group: root
+    mode: "0644"
+  register: jenkins_internal_ca_installed
+  no_log: true
+
+- name: Refresh Jenkins host certificate trust
+  ansible.builtin.command: update-ca-certificates
+  when: jenkins_internal_ca_installed.changed
+
+- name: Authenticate Keycloak CLI for Jenkins
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - config
+      - credentials
+      - --config
+      - /tmp/horus-jenkins-kcadm.config
+      - --server
+      - "{{ jenkins_keycloak_url }}"
+      - --realm
+      - master
+      - --user
+      - "{{ access_admin_user }}"
+      - --password
+      - "{{ access_admin_password }}"
+  delegate_to: "{{ jenkins_keycloak_host }}"
+  changed_when: false
+  no_log: true
+
+- name: Read Jenkins Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - get
+      - clients
+      - --config
+      - /tmp/horus-jenkins-kcadm.config
+      - -r
+      - "{{ jenkins_oidc_realm }}"
+      - -q
+      - "clientId={{ jenkins_oidc_client_id }}"
+  delegate_to: "{{ jenkins_keycloak_host }}"
+  register: jenkins_keycloak_clients
+  changed_when: false
+  no_log: true
+
+- name: Select Jenkins Keycloak client identifier
+  ansible.builtin.set_fact:
+    jenkins_keycloak_client_uuid: >-
+      {{ ((jenkins_keycloak_clients.stdout | from_json | first).id)
+         if (jenkins_keycloak_clients.stdout | from_json | length > 0) else '' }}
+  no_log: true
+
+- name: Create Jenkins Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - create
+      - clients
+      - --config
+      - /tmp/horus-jenkins-kcadm.config
+      - -r
+      - "{{ jenkins_oidc_realm }}"
+      - -s
+      - "clientId={{ jenkins_oidc_client_id }}"
+      - -s
+      - name=HoRus Jenkins
+      - -s
+      - enabled=true
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - "secret={{ jenkins_oidc_client_secret }}"
+      - -s
+      - "redirectUris=[\"{{ jenkins_oidc_redirect_uri }}\"]"
+      - -s
+      - "webOrigins=[\"{{ jenkins_public_url }}\"]"
+  delegate_to: "{{ jenkins_keycloak_host }}"
+  when: jenkins_keycloak_client_uuid | length == 0
+  no_log: true
+
+- name: Update Jenkins Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - update
+      - "clients/{{ jenkins_keycloak_client_uuid }}"
+      - --config
+      - /tmp/horus-jenkins-kcadm.config
+      - -r
+      - "{{ jenkins_oidc_realm }}"
+      - -s
+      - enabled=true
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - "secret={{ jenkins_oidc_client_secret }}"
+      - -s
+      - "redirectUris=[\"{{ jenkins_oidc_redirect_uri }}\"]"
+      - -s
+      - "webOrigins=[\"{{ jenkins_public_url }}\"]"
+  delegate_to: "{{ jenkins_keycloak_host }}"
+  when: jenkins_keycloak_client_uuid | length > 0
+  changed_when: false
+  no_log: true
+
+- name: Remove temporary Jenkins Keycloak CLI session
+  ansible.builtin.file:
+    path: /tmp/horus-jenkins-kcadm.config
+    state: absent
+  delegate_to: "{{ jenkins_keycloak_host }}"
+  no_log: true

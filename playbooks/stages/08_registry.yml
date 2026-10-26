@@ -1,0 +1,169 @@
+---
+- name: Install OCI registry
+  hosts: registry
+  become: true
+  vars:
+    keepass_master_password: "{{ hostvars['localhost'].horus_keepass_master_password }}"
+    registry_oidc_client_secret: >-
+      {{ lookup('keepass2', keepass_registry_oidc_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    access_admin_user: >-
+      {{ lookup('keepass2', keepass_access_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='username') }}
+    access_admin_password: >-
+      {{ lookup('keepass2', keepass_access_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    technitium_api_token: >-
+      {{ lookup('keepass2', keepass_technitium_token_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+  pre_tasks:
+    - name: Require KeePass database environment variable
+      ansible.builtin.assert:
+        that: keepass_database_path | length > 0
+        fail_msg: HORUS_KEEPASS_DATABASE is empty.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Check KeePass database path on controller
+      ansible.builtin.stat:
+        path: "{{ keepass_database_path }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: registry_keepass_database
+
+    - name: Require KeePass database on controller
+      ansible.builtin.assert:
+        that: registry_keepass_database.stat.isreg | default(false)
+        fail_msg: >-
+          HORUS_KEEPASS_DATABASE does not point to a KeePass file:
+          {{ keepass_database_path }}
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Ensure Registry credentials exist in KeePass
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ inventory_dir }}/../scripts/registry_keepass.py"
+          - ensure
+          - --database
+          - "{{ keepass_database_path }}"
+          - --oidc-entry
+          - "{{ keepass_registry_oidc_entry }}"
+      environment:
+        HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: registry_keepass_ensure
+      failed_when: false
+      changed_when: "'created=true' in registry_keepass_ensure.stdout"
+      no_log: true
+
+    - name: Report Registry KeePass helper failure
+      ansible.builtin.fail:
+        msg: >-
+          Registry KeePass preparation failed:
+          {{ registry_keepass_ensure.stderr | default('helper returned no error details') | trim }}
+      when: registry_keepass_ensure.rc | default(1) != 0
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Check gateway private key source on controller
+      ansible.builtin.stat:
+        path: "{{ hostvars['horus-gw-node01'].gateway_private_key_source }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: registry_gateway_key_source
+
+    - name: Require gateway private key source on controller
+      ansible.builtin.assert:
+        that: registry_gateway_key_source.stat.isreg | default(false)
+        fail_msg: >-
+          Gateway SSH key was not found at
+          {{ hostvars['horus-gw-node01'].gateway_private_key_source }}.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Create controller SSH key directory
+      ansible.builtin.file:
+        path: "{{ hostvars['horus-gw-node01'].ansible_private_key_file | dirname }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Stage gateway private key with safe WSL permissions
+      ansible.builtin.copy:
+        src: "{{ hostvars['horus-gw-node01'].gateway_private_key_source }}"
+        dest: "{{ hostvars['horus-gw-node01'].ansible_private_key_file }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      no_log: true
+
+    - name: Install Registry gateway policy scripts
+      ansible.builtin.copy:
+        src: "{{ inventory_dir }}/../scripts/{{ item }}"
+        dest: "/tmp/{{ item }}"
+        owner: root
+        group: root
+        mode: "0700"
+      loop:
+        - apply_registry_gateway_access.sh
+        - commit_registry_gateway_access.sh
+      delegate_to: horus-gw-node01
+      run_once: true
+
+    - name: Apply rollback-protected Registry gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/apply_registry_gateway_access.sh]
+      delegate_to: horus-gw-node01
+      run_once: true
+      register: registry_gateway_policy
+      changed_when: "'APPLY_OK' in registry_gateway_policy.stdout"
+
+  roles:
+    - reg
+
+  post_tasks:
+    - name: Commit verified Registry gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/commit_registry_gateway_access.sh]
+      delegate_to: horus-gw-node01
+      run_once: true
+      changed_when: registry_gateway_policy.changed

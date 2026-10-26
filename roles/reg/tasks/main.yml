@@ -1,0 +1,35 @@
+---
+- name: Require Registry credentials
+  ansible.builtin.assert:
+    that:
+      - registry_oidc_client_secret | length > 0
+      - access_admin_user | length > 0
+      - access_admin_password | length > 0
+    fail_msg: Required Registry or Access credentials are missing from KeePass.
+  no_log: true
+
+- name: Install Registry components
+  ansible.builtin.include_tasks: install.yml
+- name: Prepare Registry single sign-on
+  ansible.builtin.include_tasks: oidc.yml
+- name: Configure Registry
+  ansible.builtin.include_tasks: config.yml
+- name: Install shared operator tools for Registry
+  ansible.builtin.include_role:
+    name: common_tools
+- name: Install and configure Fluent Bit for Registry
+  ansible.builtin.include_role:
+    name: fluent_bit
+- name: Apply pending Registry handlers
+  ansible.builtin.meta: flush_handlers
+- name: Publish Registry in central DNS
+  ansible.builtin.include_role:
+    name: technitium_dns
+  vars:
+    technitium_dns_record_name: "{{ registry_public_hostname }}"
+    technitium_dns_record_address: "{{ horus_portal_dns_address }}"
+- name: Publish Registry through NGINX
+  ansible.builtin.include_tasks: publish.yml
+- name: Validate Registry
+  ansible.builtin.include_tasks: test.yml
+

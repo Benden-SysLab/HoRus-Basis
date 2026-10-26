@@ -1,0 +1,7 @@
+---
+
+- name: Restart Fluent Bit
+  ansible.builtin.service:
+    name: "{{ fluent_bit_service_name }}"
+    state: restarted
+

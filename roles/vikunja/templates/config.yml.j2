@@ -1,0 +1,44 @@
+service:
+  interface: 0.0.0.0:{{ vikunja_http_port }}
+  publicurl: {{ vikunja_public_url }}
+  jwtsecret: {{ vikunja_service_secret | to_json }}
+  enableregistration: false
+  timezone: Europe/Moscow
+
+database:
+  type: postgres
+  host: {{ vikunja_postgres_host }}
+  port: {{ vikunja_postgres_port }}
+  database: {{ vikunja_postgres_database }}
+  user: {{ vikunja_postgres_user }}
+  password: {{ vikunja_postgres_password | to_json }}
+  sslmode: disable
+
+files:
+  basepath: {{ vikunja_files_dir }}
+
+log:
+  path: {{ vikunja_log_dir }}
+  enabled: true
+  standard: stdout
+  level: INFO
+  format: structured
+  database: "off"
+  http: stdout
+
+auth:
+  local:
+    enabled: true
+  openid:
+    enabled: true
+    providers:
+      {{ vikunja_oidc_provider }}:
+        name: HoRus Access
+        authurl: {{ vikunja_oidc_auth_url }}
+        logouturl: {{ vikunja_oidc_logout_url }}
+        clientid: {{ vikunja_oidc_client_id }}
+        clientsecret: {{ vikunja_oidc_client_secret | to_json }}
+        scope: "openid profile email"
+
+redis:
+  enabled: false

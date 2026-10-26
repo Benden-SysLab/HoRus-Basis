@@ -1,0 +1,114 @@
+---
+- name: Install Wiki.js configuration
+  ansible.builtin.template:
+    src: config.yml.j2
+    dest: "{{ wiki_config_path }}"
+    owner: root
+    group: "{{ wiki_system_group }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart Wiki.js
+
+- name: Install Wiki.js systemd service
+  ansible.builtin.template:
+    src: wiki.service.j2
+    dest: /etc/systemd/system/wiki.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Wiki.js
+
+- name: Enable and start Wiki.js
+  ansible.builtin.systemd_service:
+    name: "{{ wiki_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Start and diagnose Wiki.js readiness
+  block:
+    - name: Wait for local Wiki.js HTTP endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ wiki_http_port }}/"
+        status_code: 200
+      register: wiki_ready
+      retries: 18
+      delay: 5
+      until: wiki_ready.status == 200
+  rescue:
+    - name: Read failed Wiki.js service status
+      ansible.builtin.command:
+        argv: [systemctl, --no-pager, --full, status, wiki]
+      register: wiki_failed_status
+      changed_when: false
+      failed_when: false
+
+    - name: Read failed Wiki.js journal
+      ansible.builtin.command:
+        argv: [journalctl, --no-pager, -u, wiki, -n, "120"]
+      register: wiki_failed_journal
+      changed_when: false
+      failed_when: false
+
+    - name: Read failed Wiki.js application log
+      ansible.builtin.command:
+        argv: [tail, -n, "200", "{{ wiki_log_dir }}/wiki.log"]
+      register: wiki_failed_application_log
+      changed_when: false
+      failed_when: false
+
+    - name: Report Wiki.js startup failure
+      ansible.builtin.fail:
+        msg: |-
+          Wiki.js did not become ready.
+          === systemctl status ===
+          {{ wiki_failed_status.stdout | default('unavailable') }}
+          {{ wiki_failed_status.stderr | default('') }}
+          === journal ===
+          {{ wiki_failed_journal.stdout | default('unavailable') }}
+          {{ wiki_failed_journal.stderr | default('') }}
+          === application log ===
+          {{ wiki_failed_application_log.stdout | default('unavailable') }}
+          {{ wiki_failed_application_log.stderr | default('') }}
+
+- name: Check Wiki.js bootstrap marker
+  ansible.builtin.stat:
+    path: "{{ wiki_bootstrap_marker }}"
+  register: wiki_bootstrap_state
+
+- name: Complete initial Wiki.js setup
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ wiki_http_port }}/finalize"
+    method: POST
+    body_format: json
+    body:
+      adminEmail: "{{ wiki_bootstrap_email }}"
+      adminPassword: "{{ wiki_bootstrap_password }}"
+      siteUrl: "{{ wiki_public_url }}"
+      telemetry: false
+    status_code: 200
+  when: not wiki_bootstrap_state.stat.exists
+  no_log: true
+
+- name: Record completed Wiki.js bootstrap
+  ansible.builtin.file:
+    path: "{{ wiki_bootstrap_marker }}"
+    state: touch
+    owner: "{{ wiki_system_user }}"
+    group: "{{ wiki_system_group }}"
+    mode: "0600"
+    modification_time: preserve
+    access_time: preserve
+  when: not wiki_bootstrap_state.stat.exists
+
+- name: Wait for Wiki.js after initial bootstrap
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ wiki_http_port }}/"
+    status_code: 200
+  register: wiki_after_bootstrap
+  retries: 12
+  delay: 5
+  until: wiki_after_bootstrap.status == 200
+

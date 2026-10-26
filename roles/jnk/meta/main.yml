@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  role_name: jnk
+  author: Benden-SysLab
+  description: Install and publish the HoRus Jenkins controller.
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Debian
+      versions: [all]
+dependencies: []
+

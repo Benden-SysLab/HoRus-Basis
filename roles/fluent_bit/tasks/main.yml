@@ -1,0 +1,12 @@
+---
+
+- name: Install Fluent Bit package
+  ansible.builtin.include_tasks: install.yml
+
+- name: Configure Fluent Bit for this service
+  ansible.builtin.include_tasks: config.yml
+
+- name: Configure Fluent Bit logging lifecycle
+  ansible.builtin.include_tasks: logging.yml
+
+

@@ -1,0 +1,14 @@
+---
+# Service entrypoint. Shared installers are owned by this service role.
+
+- name: Install service-specific components
+  ansible.builtin.include_tasks: install.yml
+- name: Configure service
+  ansible.builtin.include_tasks: config.yml
+- name: Configure Ansible controller credentials
+  ansible.builtin.include_tasks: credentials.yml
+- name: Configure service logging
+  ansible.builtin.include_tasks: logging.yml
+- name: Validate service
+  ansible.builtin.include_tasks: test.yml
+

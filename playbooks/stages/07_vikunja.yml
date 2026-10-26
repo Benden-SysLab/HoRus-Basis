@@ -1,0 +1,210 @@
+---
+- name: Install Vikunja
+  hosts: vikunja
+  become: true
+  vars:
+    keepass_master_password: "{{ hostvars['localhost'].horus_keepass_master_password }}"
+    vikunja_postgres_user: >-
+      {{ lookup('keepass2', keepass_vikunja_postgres_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='username') }}
+    vikunja_postgres_password: >-
+      {{ lookup('keepass2', keepass_vikunja_postgres_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    vikunja_oidc_client_secret: >-
+      {{ lookup('keepass2', keepass_vikunja_oidc_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    vikunja_service_secret: >-
+      {{ lookup('keepass2', keepass_vikunja_application_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    access_admin_user: >-
+      {{ lookup('keepass2', keepass_access_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='username') }}
+    access_admin_password: >-
+      {{ lookup('keepass2', keepass_access_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    technitium_api_token: >-
+      {{ lookup('keepass2', keepass_technitium_token_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+  pre_tasks:
+    - name: Require KeePass database environment variable
+      ansible.builtin.assert:
+        that: keepass_database_path | length > 0
+        fail_msg: >-
+          HORUS_KEEPASS_DATABASE is empty. Export the WSL path to the KeePass
+          database before running this playbook.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Check KeePass database path on controller
+      ansible.builtin.stat:
+        path: "{{ keepass_database_path }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: vikunja_keepass_database
+
+    - name: Require KeePass database on controller
+      ansible.builtin.assert:
+        that: vikunja_keepass_database.stat.isreg | default(false)
+        fail_msg: >-
+          HORUS_KEEPASS_DATABASE does not point to a KeePass file:
+          {{ keepass_database_path | default('') }}
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Check Vikunja KeePass helper on controller
+      ansible.builtin.stat:
+        path: "{{ inventory_dir }}/../scripts/vikunja_keepass.py"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: vikunja_keepass_helper
+
+    - name: Require Vikunja KeePass helper on controller
+      ansible.builtin.assert:
+        that: vikunja_keepass_helper.stat.isreg | default(false)
+        fail_msg: Vikunja KeePass helper was not found in the repository scripts directory.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Ensure Vikunja credentials exist in KeePass
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ inventory_dir }}/../scripts/vikunja_keepass.py"
+          - ensure
+          - --database
+          - "{{ keepass_database_path }}"
+          - --postgres-entry
+          - "{{ keepass_vikunja_postgres_entry }}"
+          - --oidc-entry
+          - "{{ keepass_vikunja_oidc_entry }}"
+          - --application-entry
+          - "{{ keepass_vikunja_application_entry }}"
+      environment:
+        HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: vikunja_keepass_ensure
+      failed_when: false
+      changed_when: "'created=true' in vikunja_keepass_ensure.stdout"
+      no_log: true
+
+    - name: Report Vikunja KeePass helper failure
+      ansible.builtin.fail:
+        msg: >-
+          Vikunja KeePass preparation failed:
+          {{ vikunja_keepass_ensure.stderr | default('helper returned no error details') | trim }}
+      when: vikunja_keepass_ensure.rc | default(1) != 0
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Check gateway private key source on controller
+      ansible.builtin.stat:
+        path: "{{ hostvars['horus-gw-node01'].gateway_private_key_source }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: vikunja_gateway_key_source
+
+    - name: Require gateway private key source on controller
+      ansible.builtin.assert:
+        that: vikunja_gateway_key_source.stat.isreg | default(false)
+        fail_msg: >-
+          Gateway SSH key was not found at
+          {{ hostvars['horus-gw-node01'].gateway_private_key_source }}.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Create controller SSH key directory
+      ansible.builtin.file:
+        path: "{{ hostvars['horus-gw-node01'].ansible_private_key_file | dirname }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Stage gateway private key with safe WSL permissions
+      ansible.builtin.copy:
+        src: "{{ hostvars['horus-gw-node01'].gateway_private_key_source }}"
+        dest: "{{ hostvars['horus-gw-node01'].ansible_private_key_file }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      no_log: true
+
+    - name: Install Vikunja gateway policy scripts
+      ansible.builtin.copy:
+        src: "{{ inventory_dir }}/../scripts/{{ item }}"
+        dest: "/tmp/{{ item }}"
+        owner: root
+        group: root
+        mode: "0700"
+      loop:
+        - apply_collaboration_gateway_access.sh
+        - commit_collaboration_gateway_access.sh
+      delegate_to: horus-gw-node01
+      run_once: true
+
+    - name: Apply rollback-protected Vikunja gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/apply_collaboration_gateway_access.sh]
+      delegate_to: horus-gw-node01
+      run_once: true
+      register: vikunja_gateway_policy
+      changed_when: "'APPLY_OK' in vikunja_gateway_policy.stdout"
+
+  roles:
+    - vikunja
+
+  post_tasks:
+    - name: Commit verified Vikunja gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/commit_collaboration_gateway_access.sh]
+      delegate_to: horus-gw-node01
+      run_once: true
+      changed_when: vikunja_gateway_policy.changed

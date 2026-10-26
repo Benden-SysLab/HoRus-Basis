@@ -1,0 +1,24 @@
+---
+- name: Check Wiki.js service
+  ansible.builtin.command: systemctl is-active {{ wiki_service_name }}
+  register: wiki_service_state
+  changed_when: false
+
+- name: Require Wiki.js service to be active
+  ansible.builtin.assert:
+    that: wiki_service_state.stdout | trim == 'active'
+
+- name: Check local Wiki.js page
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ wiki_http_port }}/"
+    status_code: 200
+
+- name: Check Wiki.js public page through NGINX
+  ansible.builtin.uri:
+    url: https://127.0.0.1/
+    headers:
+      Host: "{{ wiki_public_hostname }}"
+    validate_certs: false
+    status_code: 200
+  delegate_to: "{{ wiki_nginx_host }}"
+

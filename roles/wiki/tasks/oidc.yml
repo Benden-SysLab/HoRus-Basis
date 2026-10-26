@@ -1,0 +1,133 @@
+---
+- name: Read HoRus internal TLS certificate
+  ansible.builtin.slurp:
+    src: "{{ wiki_nginx_tls_certificate }}"
+  delegate_to: "{{ wiki_nginx_host }}"
+  register: wiki_internal_ca
+  no_log: true
+
+- name: Trust HoRus internal TLS certificate on Wiki.js host
+  ansible.builtin.copy:
+    dest: /usr/local/share/ca-certificates/horus-admin.crt
+    content: "{{ wiki_internal_ca.content | b64decode }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: wiki_internal_ca_installed
+  no_log: true
+
+- name: Refresh Wiki.js host certificate trust
+  ansible.builtin.command: update-ca-certificates
+  when: wiki_internal_ca_installed.changed
+
+- name: Authenticate Keycloak administration CLI for Wiki.js
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - config
+      - credentials
+      - --config
+      - /tmp/horus-wiki-kcadm.config
+      - --server
+      - "{{ wiki_keycloak_url }}"
+      - --realm
+      - master
+      - --user
+      - "{{ access_admin_user }}"
+      - --password
+      - "{{ access_admin_password }}"
+  delegate_to: "{{ wiki_keycloak_host }}"
+  changed_when: false
+  no_log: true
+
+- name: Read Wiki.js Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - get
+      - clients
+      - --config
+      - /tmp/horus-wiki-kcadm.config
+      - -r
+      - "{{ wiki_oidc_realm }}"
+      - -q
+      - "clientId={{ wiki_oidc_client_id }}"
+  delegate_to: "{{ wiki_keycloak_host }}"
+  register: wiki_keycloak_clients
+  changed_when: false
+  no_log: true
+
+- name: Select Wiki.js Keycloak client identifier
+  ansible.builtin.set_fact:
+    wiki_keycloak_client_uuid: >-
+      {{ ((wiki_keycloak_clients.stdout | from_json | first).id)
+         if (wiki_keycloak_clients.stdout | from_json | length > 0) else '' }}
+  no_log: true
+
+- name: Create Wiki.js Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - create
+      - clients
+      - --config
+      - /tmp/horus-wiki-kcadm.config
+      - -r
+      - "{{ wiki_oidc_realm }}"
+      - -s
+      - "clientId={{ wiki_oidc_client_id }}"
+      - -s
+      - name=Wiki.js
+      - -s
+      - enabled=true
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - "secret={{ wiki_oidc_client_secret }}"
+      - -s
+      - "redirectUris=[\"{{ wiki_oidc_redirect_uri }}\"]"
+      - -s
+      - "webOrigins=[\"{{ wiki_public_url }}\"]"
+  delegate_to: "{{ wiki_keycloak_host }}"
+  when: wiki_keycloak_client_uuid | length == 0
+  no_log: true
+
+- name: Update Wiki.js Keycloak client
+  ansible.builtin.command:
+    argv:
+      - /opt/keycloak/current/bin/kcadm.sh
+      - update
+      - "clients/{{ wiki_keycloak_client_uuid }}"
+      - --config
+      - /tmp/horus-wiki-kcadm.config
+      - -r
+      - "{{ wiki_oidc_realm }}"
+      - -s
+      - enabled=true
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - "secret={{ wiki_oidc_client_secret }}"
+      - -s
+      - "redirectUris=[\"{{ wiki_oidc_redirect_uri }}\"]"
+      - -s
+      - "webOrigins=[\"{{ wiki_public_url }}\"]"
+  delegate_to: "{{ wiki_keycloak_host }}"
+  when: wiki_keycloak_client_uuid | length > 0
+  changed_when: false
+  no_log: true
+
+- name: Remove temporary Wiki.js Keycloak CLI session
+  ansible.builtin.file:
+    path: /tmp/horus-wiki-kcadm.config
+    state: absent
+  delegate_to: "{{ wiki_keycloak_host }}"
+  no_log: true

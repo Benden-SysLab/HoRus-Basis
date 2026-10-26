@@ -1,0 +1,23 @@
+---
+# Service entrypoint. Shared installers are owned by this service role.
+
+- name: Install service-specific components
+  ansible.builtin.include_tasks: install.yml
+- name: Configure service
+  ansible.builtin.include_tasks: config.yml
+- name: Configure service logging
+  ansible.builtin.include_tasks: logging.yml
+- name: Install shared operator tools
+  ansible.builtin.include_role:
+    name: common_tools
+- name: Install and configure Fluent Bit
+  ansible.builtin.include_role:
+    name: fluent_bit
+- name: Apply pending PostgreSQL configuration handlers
+  ansible.builtin.meta: flush_handlers
+- name: Install PostgreSQL exporter
+  ansible.builtin.include_role:
+    name: psql_exporter
+- name: Validate service
+  ansible.builtin.include_tasks: test.yml
+

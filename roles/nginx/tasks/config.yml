@@ -1,0 +1,131 @@
+---
+
+- name: Create NGINX configuration directory
+  ansible.builtin.file:
+    path: "{{ nginx_conf_d_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create NGINX snippets directory
+  ansible.builtin.file:
+    path: "{{ nginx_snippets_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create NGINX portal and TLS directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ nginx_portal_root }}", group: www-data, mode: "0755"}
+    - {path: "{{ nginx_portal_services_dir }}", group: www-data, mode: "0755"}
+    - {path: "{{ nginx_portal_icons_dir }}", group: www-data, mode: "0755"}
+    - {path: "{{ nginx_tls_dir }}", group: root, mode: "0750"}
+
+- name: Remove retired services from the HoRus dashboard
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ nginx_retired_portal_manifests }}"
+
+- name: Install HoRus foundation dashboard manifests
+  ansible.builtin.copy:
+    dest: "{{ nginx_portal_services_dir }}/{{ item.id }}.json"
+    content: "{{ item | ansible.builtin.to_nice_json }}\n"
+    owner: root
+    group: www-data
+    mode: "0644"
+  loop: "{{ nginx_portal_foundation_services }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create internal HoRus TLS certificate
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:4096
+      - -keyout
+      - "{{ nginx_tls_key }}"
+      - -out
+      - "{{ nginx_tls_certificate }}"
+      - -sha256
+      - -days
+      - "3650"
+      - -nodes
+      - -subj
+      - "/CN={{ nginx_tls_common_name }}"
+      - -addext
+      - "subjectAltName={{ nginx_tls_subject_alt_name }}"
+  args:
+    creates: "{{ nginx_tls_certificate }}"
+  notify: Reload NGINX
+
+- name: Set HoRus TLS permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ nginx_tls_certificate }}", mode: "0644"}
+    - {path: "{{ nginx_tls_key }}", mode: "0600"}
+
+- name: Install HoRus dashboard
+  ansible.builtin.template:
+    src: portal/dashboard.html.j2
+    dest: "{{ nginx_portal_root }}/index.html"
+    owner: root
+    group: www-data
+    mode: "0644"
+  notify: Reload NGINX
+
+- name: Install Benden-SysLab portal graphics
+  ansible.builtin.copy:
+    src: "portal/{{ item }}"
+    dest: "{{ nginx_portal_root }}/{{ item }}"
+    owner: root
+    group: www-data
+    mode: "0644"
+  loop:
+    - bsl-logo.svg
+    - favicon.svg
+
+- name: Install HoRus portal service icons
+  ansible.builtin.copy:
+    src: portal/icons/
+    dest: "{{ nginx_portal_icons_dir }}/"
+    owner: root
+    group: www-data
+    directory_mode: "0755"
+    mode: "0644"
+
+- name: Install NGINX main configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: "{{ nginx_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "nginx -t -c %s"
+  notify: Reload NGINX
+
+- name: Install NGINX baseline service configuration
+  ansible.builtin.template:
+    src: conf.d/10_service.conf.j2
+    dest: "{{ nginx_conf_d_path }}/10_service.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload NGINX
+
+

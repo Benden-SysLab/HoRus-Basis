@@ -1,0 +1,29 @@
+---
+# Shared non-secret defaults and install versions.
+ansible_become: true
+
+horus_basis_enabled: true
+horus_common_packages:
+  - curl
+  - btop
+  - jq
+  - vim
+  - git
+  - ca-certificates
+
+fluent_bit_enabled: true
+fluent_bit_version: latest
+fluent_bit_config_path: /etc/fluent-bit/fluent-bit.conf
+
+ansible_core_version: 2.21.5
+gitguardian_version: 1.56.0
+
+postgres_exporter_enabled: true
+postgres_exporter_version: latest
+postgres_exporter_listen_address: 127.0.0.1
+
+# Controller-side KeePass integration. Sensitive entry paths are supplied by
+# inventory/vault/horus_vault.yml. Set the database path at runtime:
+# export HORUS_KEEPASS_DATABASE=/mnt/c/path/to/horus.kdbx
+keepass_database_path: "{{ lookup('ansible.builtin.env', 'HORUS_KEEPASS_DATABASE') }}"
+

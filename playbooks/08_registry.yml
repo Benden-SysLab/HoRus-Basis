@@ -1,0 +1,6 @@
+---
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Stage 08 - OCI registry
+  ansible.builtin.import_playbook: stages/08_registry.yml

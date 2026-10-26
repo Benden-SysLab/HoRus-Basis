@@ -1,0 +1,40 @@
+---
+- name: Read Jenkins agent Java version
+  ansible.builtin.command: java -version
+  register: jenkins_agent_java
+  changed_when: false
+
+- name: Require Java 21 on Jenkins agent
+  ansible.builtin.assert:
+    that: "'21.' in jenkins_agent_java.stderr"
+
+- name: Validate Jenkins agent connection
+  block:
+    - name: Require Jenkins agent process from controller
+      ansible.builtin.command:
+        argv: [pgrep, -u, "{{ jenkins_agent_user }}", -f, remoting]
+      register: jenkins_agent_process
+      retries: 24
+      delay: 5
+      until: jenkins_agent_process.rc == 0
+      changed_when: false
+  rescue:
+    - name: Read Jenkins agent connection log
+      ansible.builtin.command:
+        argv:
+          - tail
+          - -n
+          - "200"
+          - "/var/lib/jenkins/logs/slaves/{{ jenkins_agent_name }}/slave.log"
+      delegate_to: "{{ jenkins_agent_controller_host }}"
+      register: jenkins_agent_connection_log
+      changed_when: false
+      failed_when: false
+
+    - name: Report Jenkins agent connection failure
+      ansible.builtin.fail:
+        msg: |-
+          Jenkins agent process did not start.
+          === Jenkins node log ===
+          {{ jenkins_agent_connection_log.stdout | default('unavailable') }}
+

@@ -1,0 +1,87 @@
+---
+- name: Install Registry OIDC credentials
+  ansible.builtin.template:
+    src: oidc-credentials.json.j2
+    dest: "{{ registry_oidc_credentials_path }}"
+    owner: root
+    group: "{{ registry_system_group }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart Registry
+
+- name: Install Registry configuration
+  ansible.builtin.template:
+    src: config.json.j2
+    dest: "{{ registry_config_path }}"
+    owner: root
+    group: "{{ registry_system_group }}"
+    mode: "0640"
+  notify: Restart Registry
+
+- name: Install Registry systemd service
+  ansible.builtin.template:
+    src: zot.service.j2
+    dest: /etc/systemd/system/zot.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Registry
+
+- name: Apply Registry service configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start Registry
+  ansible.builtin.systemd_service:
+    name: "{{ registry_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Start and diagnose Registry readiness
+  block:
+    - name: Wait for local Registry API
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ registry_http_port }}/v2/"
+        status_code: [200, 401]
+      register: registry_ready
+      retries: 18
+      delay: 5
+      until: registry_ready.status in [200, 401]
+  rescue:
+    - name: Read failed Registry service status
+      ansible.builtin.command:
+        argv: [systemctl, --no-pager, --full, status, zot]
+      register: registry_failed_status
+      changed_when: false
+      failed_when: false
+
+    - name: Read failed Registry journal
+      ansible.builtin.command:
+        argv: [journalctl, --no-pager, -u, zot, -n, "160"]
+      register: registry_failed_journal
+      changed_when: false
+      failed_when: false
+
+    - name: Read failed Registry application log
+      ansible.builtin.command:
+        argv: [tail, -n, "200", "{{ registry_log_path }}"]
+      register: registry_failed_application_log
+      changed_when: false
+      failed_when: false
+
+    - name: Report Registry startup failure
+      ansible.builtin.fail:
+        msg: |-
+          Zot Registry did not become ready.
+          === systemctl status ===
+          {{ registry_failed_status.stdout | default('unavailable') }}
+          {{ registry_failed_status.stderr | default('') }}
+          === journal ===
+          {{ registry_failed_journal.stdout | default('unavailable') }}
+          {{ registry_failed_journal.stderr | default('') }}
+          === application log ===
+          {{ registry_failed_application_log.stdout | default('unavailable') }}
+          {{ registry_failed_application_log.stderr | default('') }}
+

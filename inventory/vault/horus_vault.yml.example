@@ -1,0 +1,157 @@
+---
+# Copy to horus_vault.yml and replace every CHANGE_ME value locally.
+# The real file is ignored by Git. Passwords/tokens remain in KeePass; this
+# overlay stores topology, account names, local paths and KeePass entry names.
+all:
+  vars:
+    ansible_user: CHANGE_ME_OPERATOR_USER
+    ansible_private_key_file: CHANGE_ME_OPERATOR_KEY_PATH
+
+    keepass_vault_postgres_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_technitium_token_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_access_postgres_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_access_bootstrap_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_access_personal_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_gitea_postgres_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_gitea_bootstrap_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_gitea_oidc_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_gitea_application_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_wiki_postgres_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_wiki_bootstrap_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_wiki_oidc_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_vikunja_postgres_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_vikunja_oidc_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_vikunja_application_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_registry_oidc_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_jenkins_oidc_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_jenkins_recovery_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_jenkins_agent_ssh_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_gitguardian_token_group: CHANGE_ME_KEEPASS_ENTRY
+
+    technitium_api_url: CHANGE_ME_DNS_API_URL
+    technitium_dns_zone: CHANGE_ME_INTERNAL_ZONE
+    horus_portal_dns_address: CHANGE_ME_LB_ADDRESS
+    horus_internal_domain: CHANGE_ME_INTERNAL_DOMAIN
+    nginx_server_name: CHANGE_ME_INTERNAL_DOMAIN
+    nginx_tls_common_name: CHANGE_ME_TLS_COMMON_NAME
+    nginx_tls_subject_alt_name: CHANGE_ME_TLS_SUBJECT_ALT_NAME
+
+    access_public_url: CHANGE_ME_ACCESS_URL
+    access_public_hostname: CHANGE_ME_ACCESS_HOSTNAME
+    access_realm: CHANGE_ME_REALM
+    access_personal_user: CHANGE_ME_ADMIN_USER
+    access_personal_email: CHANGE_ME_ADMIN_EMAIL
+    access_postgres_host: CHANGE_ME_DATABASE_ADDRESS
+    access_postgres_database: CHANGE_ME_DATABASE_NAME
+    access_postgres_user: CHANGE_ME_DATABASE_USER
+    access_nginx_upstream_address: CHANGE_ME_ACCESS_ADDRESS
+    vault_api_addr: CHANGE_ME_VAULT_URL
+    vault_cluster_addr: CHANGE_ME_VAULT_CLUSTER_URL
+    vault_public_url: CHANGE_ME_VAULT_URL
+    vault_public_hostname: CHANGE_ME_VAULT_HOSTNAME
+    vault_nginx_upstream_address: CHANGE_ME_VAULT_ADDRESS
+    vault_postgres_host: CHANGE_ME_DATABASE_ADDRESS
+    vault_keepass_initialization_group: CHANGE_ME_KEEPASS_ENTRY
+    vault_tls_common_name: CHANGE_ME_TLS_COMMON_NAME
+    vault_tls_subject_alt_name: CHANGE_ME_TLS_SUBJECT_ALT_NAME
+    gitea_public_url: CHANGE_ME_GITEA_URL
+    gitea_public_hostname: CHANGE_ME_GITEA_HOSTNAME
+    gitea_postgres_host: CHANGE_ME_DATABASE_ADDRESS
+    gitea_postgres_database: CHANGE_ME_DATABASE_NAME
+    gitea_postgres_user: CHANGE_ME_DATABASE_USER
+    gitea_bootstrap_user: CHANGE_ME_BOOTSTRAP_USER
+    gitea_bootstrap_email: CHANGE_ME_BOOTSTRAP_EMAIL
+    gitea_oidc_discovery_url: CHANGE_ME_OIDC_DISCOVERY_URL
+    gitea_oidc_realm: CHANGE_ME_REALM
+    gitea_nginx_upstream_address: CHANGE_ME_GITEA_ADDRESS
+    wiki_public_url: CHANGE_ME_WIKI_URL
+    wiki_public_hostname: CHANGE_ME_WIKI_HOSTNAME
+    wiki_postgres_host: CHANGE_ME_DATABASE_ADDRESS
+    wiki_postgres_database: CHANGE_ME_DATABASE_NAME
+    wiki_postgres_user: CHANGE_ME_DATABASE_USER
+    wiki_bootstrap_email: CHANGE_ME_BOOTSTRAP_EMAIL
+    wiki_nginx_upstream_address: CHANGE_ME_WIKI_ADDRESS
+    wiki_oidc_realm: CHANGE_ME_REALM
+    vikunja_public_url: CHANGE_ME_VIKUNJA_URL
+    vikunja_public_hostname: CHANGE_ME_VIKUNJA_HOSTNAME
+    vikunja_postgres_host: CHANGE_ME_DATABASE_ADDRESS
+    vikunja_postgres_database: CHANGE_ME_DATABASE_NAME
+    vikunja_postgres_user: CHANGE_ME_DATABASE_USER
+    vikunja_oidc_auth_url: CHANGE_ME_OIDC_ISSUER_URL
+    vikunja_oidc_realm: CHANGE_ME_REALM
+    vikunja_nginx_upstream_address: CHANGE_ME_VIKUNJA_ADDRESS
+    registry_public_url: CHANGE_ME_REGISTRY_URL
+    registry_public_hostname: CHANGE_ME_REGISTRY_HOSTNAME
+    registry_admin_user: CHANGE_ME_ADMIN_USER
+    registry_oidc_realm: CHANGE_ME_REALM
+    registry_oidc_issuer: CHANGE_ME_OIDC_ISSUER_URL
+    registry_nginx_upstream_address: CHANGE_ME_REGISTRY_ADDRESS
+    jenkins_public_url: CHANGE_ME_JENKINS_URL
+    jenkins_public_hostname: CHANGE_ME_JENKINS_HOSTNAME
+    jenkins_oidc_discovery_url: CHANGE_ME_OIDC_DISCOVERY_URL
+    jenkins_oidc_realm: CHANGE_ME_REALM
+    jenkins_admin_user: CHANGE_ME_ADMIN_USER
+    jenkins_recovery_user: CHANGE_ME_RECOVERY_USER
+    jenkins_agent_address: CHANGE_ME_AGENT_ADDRESS
+    jenkins_agent_name: CHANGE_ME_AGENT_NAME
+    jenkins_agent_user: CHANGE_ME_AGENT_USER
+    jenkins_ansible_user: CHANGE_ME_AUTOMATION_USER
+    jenkins_nginx_upstream_address: CHANGE_ME_JENKINS_ADDRESS
+    ansible_runtime_user: CHANGE_ME_AUTOMATION_USER
+    ansible_runtime_key: CHANGE_ME_KEY_ZONE
+    ansible_runtime_key_filename: CHANGE_ME_KEY_FILENAME
+    ansible_rollout_become: true
+    horus_jenkins_agent_user: CHANGE_ME_AGENT_USER
+    horus_jenkins_ansible_user: CHANGE_ME_AUTOMATION_USER
+    horus_jenkins_ansible_home: CHANGE_ME_AUTOMATION_HOME
+    horus_jenkins_workloads_key_filename: CHANGE_ME_KEY_FILENAME
+    horus_jenkins_proxmox_key_filename: CHANGE_ME_KEY_FILENAME
+    horus_jenkins_gateway_key_filename: CHANGE_ME_KEY_FILENAME
+    horus_jenkins_external_gateway_key_filename: CHANGE_ME_KEY_FILENAME
+    horus_controller_bootstrap_ssh_dir: CHANGE_ME_CONTROLLER_SSH_DIR
+    horus_ansible_bootstrap_key_files: []
+    horus_jenkins_workloads_private_key_path: CHANGE_ME
+    horus_jenkins_workloads_public_key_path: CHANGE_ME
+    horus_jenkins_proxmox_private_key_path: CHANGE_ME
+    horus_jenkins_proxmox_public_key_path: CHANGE_ME
+    horus_jenkins_gateway_private_key_path: CHANGE_ME
+    horus_jenkins_gateway_public_key_path: CHANGE_ME
+    horus_jenkins_external_gateway_private_key_path: CHANGE_ME
+    horus_jenkins_external_gateway_public_key_path: CHANGE_ME
+    nginx_portal_foundation_services: []
+
+  hosts:
+    horus-lb-srv01: {ansible_host: CHANGE_ME}
+    horus-agent-srv01: {ansible_host: CHANGE_ME}
+    horus-jnk-srv01: {ansible_host: CHANGE_ME, horus_ssh_ed25519_fingerprint: CHANGE_ME}
+    horus-ai-srv01: {ansible_host: CHANGE_ME}
+    horus-db-srv01: {ansible_host: CHANGE_ME}
+    horus-media-srv01: {ansible_host: CHANGE_ME}
+    horus-k8sw-srv01: {ansible_host: CHANGE_ME}
+    horus-gg-srv01: {ansible_host: CHANGE_ME}
+    horus-ai-srv02: {ansible_host: CHANGE_ME}
+    horus-db-srv02: {ansible_host: CHANGE_ME}
+    horus-vec-srv01: {ansible_host: CHANGE_ME}
+    horus-cache-srv01: {ansible_host: CHANGE_ME}
+    horus-media-srv02: {ansible_host: CHANGE_ME}
+    horus-iam-srv01: {ansible_host: CHANGE_ME}
+    horus-k8sw-srv02: {ansible_host: CHANGE_ME}
+    horus-k8sc-srv01: {ansible_host: CHANGE_ME}
+    horus-db-srv03: {ansible_host: CHANGE_ME}
+    horus-vlt-srv01: {ansible_host: CHANGE_ME}
+    horus-wiki-srv01: {ansible_host: CHANGE_ME}
+    horus-git-srv01: {ansible_host: CHANGE_ME}
+    horus-reg-srv01: {ansible_host: CHANGE_ME}
+    horus-vkj-srv01: {ansible_host: CHANGE_ME}
+    horus-grf-srv01: {ansible_host: CHANGE_ME}
+    horus-pm-srv01: {ansible_host: CHANGE_ME}
+    horus-lok-srv01: {ansible_host: CHANGE_ME}
+    horus-otel-srv01: {ansible_host: CHANGE_ME}
+    horus-s3-srv01: {ansible_host: CHANGE_ME}
+    horus-ai-srv03: {ansible_host: CHANGE_ME}
+    horus-pmx-node01: {ansible_host: CHANGE_ME}
+    horus-pmx-node02: {ansible_host: CHANGE_ME}
+    horus-pmx-node03: {ansible_host: CHANGE_ME}
+    horus-pmx-node04: {ansible_host: CHANGE_ME}
+    horus-gw-node01: {ansible_host: CHANGE_ME}
+    out-gw-nl01: {ansible_host: CHANGE_ME}

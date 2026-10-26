@@ -1,0 +1,104 @@
+---
+- name: Install Gitea
+  hosts: gitea
+  become: true
+  vars:
+    keepass_master_password: "{{ hostvars['localhost'].horus_keepass_master_password }}"
+    gitea_postgres_user: >-
+      {{ lookup('keepass2', keepass_gitea_postgres_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='username') }}
+    gitea_postgres_password: >-
+      {{ lookup('keepass2', keepass_gitea_postgres_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    gitea_bootstrap_user: >-
+      {{ lookup('keepass2', keepass_gitea_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='username') }}
+    gitea_bootstrap_password: >-
+      {{ lookup('keepass2', keepass_gitea_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    gitea_oidc_client_secret: >-
+      {{ lookup('keepass2', keepass_gitea_oidc_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    gitea_application_secrets: >-
+      {{ lookup('keepass2', keepass_gitea_application_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='notes') | from_json }}
+    gitea_internal_token: "{{ gitea_application_secrets.internal_token }}"
+    gitea_secret_key: "{{ gitea_application_secrets.secret_key }}"
+    gitea_lfs_jwt_secret: "{{ gitea_application_secrets.lfs_jwt_secret }}"
+    gitea_oauth2_jwt_secret: "{{ gitea_application_secrets.oauth2_jwt_secret }}"
+    access_admin_user: >-
+      {{ lookup('keepass2', keepass_access_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='username') }}
+    access_admin_password: >-
+      {{ lookup('keepass2', keepass_access_bootstrap_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    technitium_api_token: >-
+      {{ lookup('keepass2', keepass_technitium_token_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+  pre_tasks:
+    - name: Check Gitea KeePass helper on controller
+      ansible.builtin.stat:
+        path: "{{ inventory_dir }}/../scripts/gitea_keepass.py"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: gitea_keepass_helper
+
+    - name: Require Gitea KeePass helper on controller
+      ansible.builtin.assert:
+        that: gitea_keepass_helper.stat.isreg | default(false)
+        fail_msg: Gitea KeePass helper was not found in the repository scripts directory.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Ensure Gitea credentials exist in KeePass
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ inventory_dir }}/../scripts/gitea_keepass.py"
+          - ensure
+          - --database
+          - "{{ keepass_database_path }}"
+          - --postgres-entry
+          - "{{ keepass_gitea_postgres_entry }}"
+          - --bootstrap-entry
+          - "{{ keepass_gitea_bootstrap_entry }}"
+          - --oidc-entry
+          - "{{ keepass_gitea_oidc_entry }}"
+          - --application-entry
+          - "{{ keepass_gitea_application_entry }}"
+      environment:
+        HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: gitea_keepass_ensure
+      changed_when: "'created=true' in gitea_keepass_ensure.stdout"
+      no_log: true
+  roles:
+    - git

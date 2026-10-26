@@ -1,0 +1,113 @@
+---
+- name: Install Wiki.js operating system dependencies
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - postgresql-client
+      - tar
+    state: present
+    update_cache: true
+
+- name: Create APT keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download NodeSource signing key
+  ansible.builtin.get_url:
+    url: "{{ wiki_nodesource_key_url }}"
+    dest: /tmp/nodesource-repo.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Convert NodeSource signing key
+  ansible.builtin.command:
+    argv:
+      - gpg
+      - --dearmor
+      - --yes
+      - --output
+      - "{{ wiki_nodesource_keyring_path }}"
+      - /tmp/nodesource-repo.asc
+  changed_when: false
+
+- name: Configure NodeSource repository
+  ansible.builtin.apt_repository:
+    repo: "{{ wiki_nodesource_repository }}"
+    filename: nodesource
+    state: present
+
+- name: Install supported Node.js runtime
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+    update_cache: true
+
+- name: Read installed Node.js version
+  ansible.builtin.command: node --version
+  register: wiki_node_version
+  changed_when: false
+
+- name: Require supported Node.js major version
+  ansible.builtin.assert:
+    that:
+      - (wiki_node_version.stdout | regex_replace('^v', '')).split('.')[0] | int >= 22
+    fail_msg: Wiki.js requires Node.js 22 or newer.
+
+- name: Create Wiki.js system group
+  ansible.builtin.group:
+    name: "{{ wiki_system_group }}"
+    system: true
+
+- name: Create Wiki.js system user
+  ansible.builtin.user:
+    name: "{{ wiki_system_user }}"
+    group: "{{ wiki_system_group }}"
+    home: "{{ wiki_data_dir }}"
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+
+- name: Create Wiki.js directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ wiki_install_root }}/releases", owner: root, group: root, mode: "0755"}
+    - {path: "{{ wiki_release_dir }}", owner: root, group: root, mode: "0755"}
+    - {path: "{{ wiki_data_dir }}", owner: "{{ wiki_system_user }}", group: "{{ wiki_system_group }}", mode: "0750"}
+    - {path: "{{ wiki_log_dir }}", owner: "{{ wiki_system_user }}", group: "{{ wiki_system_group }}", mode: "0750"}
+
+- name: Download Wiki.js release archive
+  ansible.builtin.get_url:
+    url: "{{ wiki_archive_url }}"
+    dest: "/tmp/wiki-js-{{ wiki_version }}.tar.gz"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Extract Wiki.js release
+  ansible.builtin.unarchive:
+    src: "/tmp/wiki-js-{{ wiki_version }}.tar.gz"
+    dest: "{{ wiki_release_dir }}"
+    remote_src: true
+    creates: "{{ wiki_release_dir }}/server"
+  notify: Restart Wiki.js
+
+- name: Link current Wiki.js release
+  ansible.builtin.file:
+    src: "{{ wiki_release_dir }}"
+    dest: "{{ wiki_current_dir }}"
+    state: link
+    force: true
+  notify: Restart Wiki.js
+

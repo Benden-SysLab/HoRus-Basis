@@ -1,0 +1,16 @@
+---
+- name: Publish verified SSH host keys
+  ansible.builtin.template:
+    src: known_hosts.j2
+    dest: "{{ ansible_controller_known_hosts_path }}"
+    owner: "{{ ansible_controller_operator }}"
+    group: "{{ ansible_controller_group }}"
+    mode: "0600"
+
+- name: Publish managed HoRus inventory
+  ansible.builtin.template:
+    src: inventory.yml.j2
+    dest: "{{ ansible_controller_inventory_path }}"
+    owner: "{{ ansible_controller_operator }}"
+    group: "{{ ansible_controller_group }}"
+    mode: "0640"

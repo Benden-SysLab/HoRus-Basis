@@ -1,0 +1,331 @@
+---
+- name: Install and register Jenkins agent
+  hosts: agents
+  become: true
+  vars:
+    keepass_master_password: "{{ hostvars['localhost'].horus_keepass_master_password }}"
+    jenkins_agent_key_data: >-
+      {{ lookup('keepass2', keepass_jenkins_agent_ssh_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='notes') | from_json }}
+    jenkins_agent_ssh_private_key: "{{ jenkins_agent_key_data.private_key }}"
+    jenkins_agent_ssh_public_key: "{{ jenkins_agent_key_data.public_key }}"
+    jenkins_agent_account_password_hash: "{{ jenkins_agent_key_data.account_password_hash }}"
+    jenkins_oidc_client_secret: >-
+      {{ lookup('keepass2', keepass_jenkins_oidc_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    jenkins_recovery_password: >-
+      {{ lookup('keepass2', keepass_jenkins_recovery_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
+    # Runtime contract shared by the agent and Ansible roles. These values are
+    # required again by post_tasks, outside include_role defaults scope.
+    jenkins_agent_user: "{{ horus_jenkins_agent_user }}"
+    jenkins_ansible_user: "{{ horus_jenkins_ansible_user }}"
+    jenkins_ansible_group: horus-ansible
+    jenkins_ansible_home: "{{ horus_jenkins_ansible_home }}"
+    jenkins_agent_group: jenkins
+    jenkins_agent_home: /var/lib/jenkins-agent
+    ansible_controller_root: /opt/horus/ansible
+    ansible_controller_venv: "{{ ansible_controller_root }}/venv"
+    ansible_controller_config_path: /etc/ansible/ansible.cfg
+    jenkins_agent_enabled: true
+    # Bootstrap connections may target newly provisioned guests which are not
+    # present in the operator's known_hosts yet. accept-new is non-interactive
+    # for new hosts but still rejects a changed key.
+    ansible_bootstrap_ssh_common_args: >-
+      -o StrictHostKeyChecking=accept-new
+      -o ConnectTimeout=10
+      -o ConnectionAttempts=1
+      -o ServerAliveInterval=5
+      -o ServerAliveCountMax=2
+    ansible_bootstrap_key_files: "{{ horus_ansible_bootstrap_key_files }}"
+    ansible_controller_ssh_keys:
+      - name: workloads
+        filename: "{{ horus_jenkins_workloads_key_filename }}"
+        private_key: >-
+          {{ lookup('ansible.builtin.file',
+                    horus_jenkins_workloads_private_key_path) }}
+        public_key: >-
+          {{ lookup('ansible.builtin.file',
+                    horus_jenkins_workloads_public_key_path) }}
+      - name: proxmox
+        filename: "{{ horus_jenkins_proxmox_key_filename }}"
+        private_key: >-
+          {{ lookup('ansible.builtin.file',
+                    horus_jenkins_proxmox_private_key_path) }}
+        public_key: >-
+          {{ lookup('ansible.builtin.file',
+                    horus_jenkins_proxmox_public_key_path) }}
+      - name: gateway
+        filename: "{{ horus_jenkins_gateway_key_filename }}"
+        private_key: >-
+          {{ lookup('ansible.builtin.file',
+                    horus_jenkins_gateway_private_key_path) }}
+        public_key: >-
+          {{ lookup('ansible.builtin.file',
+                    horus_jenkins_gateway_public_key_path) }}
+      - name: gateway_out
+        filename: "{{ horus_jenkins_external_gateway_key_filename }}"
+        private_key: >-
+          {{ lookup('ansible.builtin.file',
+                    horus_jenkins_external_gateway_private_key_path) }}
+        public_key: >-
+          {{ lookup('ansible.builtin.file',
+                    horus_jenkins_external_gateway_public_key_path) }}
+  pre_tasks:
+    - name: Require Jenkins agent KeePass database path
+      ansible.builtin.assert:
+        that:
+          - keepass_database_path | length > 0
+        fail_msg: >-
+          HORUS_KEEPASS_DATABASE is empty. Export the WSL path to the KeePass
+          database before running Stage 10.
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+
+    - name: Check Jenkins agent KeePass database
+      ansible.builtin.stat:
+        path: "{{ keepass_database_path }}"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      register: jenkins_agent_keepass_database
+
+    - name: Create controller bootstrap SSH directory
+      ansible.builtin.file:
+        path: "{{ horus_controller_bootstrap_ssh_dir }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+
+    - name: Install protected bootstrap keys in WSL
+      ansible.builtin.copy:
+        src: "{{ bootstrap_key.source }}"
+        dest: "{{ bootstrap_key.destination }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      loop: "{{ ansible_bootstrap_key_files }}"
+      loop_control:
+        loop_var: bootstrap_key
+        label: "{{ bootstrap_key.destination | basename }}"
+      no_log: true
+
+    - name: Require Jenkins agent KeePass database
+      ansible.builtin.assert:
+        that:
+          - jenkins_agent_keepass_database.stat.isreg | default(false)
+        fail_msg: >-
+          HORUS_KEEPASS_DATABASE does not point to a KeePass file:
+          {{ keepass_database_path | default('') }}
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+
+    - name: Check Jenkins agent KeePass helper
+      ansible.builtin.stat:
+        path: "{{ inventory_dir }}/../scripts/jenkins_agent_keepass.py"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      register: jenkins_agent_keepass_helper
+
+    - name: Require Jenkins agent KeePass helper
+      ansible.builtin.assert:
+        that: jenkins_agent_keepass_helper.stat.isreg | default(false)
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+
+    - name: Ensure Jenkins agent SSH key exists in KeePass
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ inventory_dir }}/../scripts/jenkins_agent_keepass.py"
+          - ensure
+          - --database
+          - "{{ keepass_database_path }}"
+          - --entry
+          - "{{ keepass_jenkins_agent_ssh_entry }}"
+      environment:
+        HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      register: jenkins_agent_keepass_ensure
+      failed_when: false
+      changed_when: "'created=true' in jenkins_agent_keepass_ensure.stdout"
+      no_log: true
+
+    - name: Report Jenkins agent KeePass helper failure
+      ansible.builtin.fail:
+        msg: >-
+          Jenkins agent KeePass preparation failed:
+          {{ jenkins_agent_keepass_ensure.stderr | default('helper returned no details') | trim }}
+      when: jenkins_agent_keepass_ensure.rc | default(1) != 0
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+
+  roles:
+    - agent
+
+  post_tasks:
+    - name: Resolve managed account home directories
+      ansible.builtin.command:
+        argv:
+          - getent
+          - passwd
+          - "{{ hostvars[ansible_managed_target].ansible_runtime_user }}"
+      delegate_to: "{{ ansible_managed_target }}"
+      become: false
+      vars:
+        ansible_become: false
+        ansible_ssh_common_args: "{{ ansible_bootstrap_ssh_common_args }}"
+      loop: "{{ groups['ansible_managed_targets'] }}"
+      loop_control:
+        loop_var: ansible_managed_target
+        label: "{{ ansible_managed_target }}"
+      register: ansible_managed_accounts
+      changed_when: false
+
+    - name: Create managed account SSH directories with privilege escalation
+      ansible.builtin.file:
+        path: "{{ (account_result.stdout.split(':'))[5] }}/.ssh"
+        state: directory
+        owner: "{{ hostvars[account_result.ansible_managed_target].ansible_runtime_user }}"
+        group: "{{ hostvars[account_result.ansible_managed_target].ansible_runtime_user }}"
+        mode: "0700"
+      delegate_to: "{{ account_result.ansible_managed_target }}"
+      become: true
+      vars:
+        ansible_become: true
+        ansible_ssh_common_args: "{{ ansible_bootstrap_ssh_common_args }}"
+      loop: "{{ ansible_managed_accounts.results }}"
+      loop_control:
+        loop_var: account_result
+        label: "{{ account_result.ansible_managed_target }}"
+      when: hostvars[account_result.ansible_managed_target].ansible_rollout_become | bool
+
+    - name: Create managed account SSH directories without privilege escalation
+      ansible.builtin.file:
+        path: "{{ (account_result.stdout.split(':'))[5] }}/.ssh"
+        state: directory
+        owner: "{{ hostvars[account_result.ansible_managed_target].ansible_runtime_user }}"
+        group: "{{ hostvars[account_result.ansible_managed_target].ansible_runtime_user }}"
+        mode: "0700"
+      delegate_to: "{{ account_result.ansible_managed_target }}"
+      become: false
+      vars:
+        ansible_become: false
+        ansible_ssh_common_args: "{{ ansible_bootstrap_ssh_common_args }}"
+      loop: "{{ ansible_managed_accounts.results }}"
+      loop_control:
+        loop_var: account_result
+        label: "{{ account_result.ansible_managed_target }}"
+      when: not (hostvars[account_result.ansible_managed_target].ansible_rollout_become | bool)
+
+    - name: Authorize workload trust-zone keys with privilege escalation
+      ansible.builtin.lineinfile:
+        path: "{{ (account_result.stdout.split(':'))[5] }}/.ssh/authorized_keys"
+        line: >-
+          {{ (ansible_controller_ssh_keys
+              | selectattr('name', 'equalto',
+                           hostvars[account_result.ansible_managed_target].ansible_runtime_key)
+              | first).public_key | trim }}
+        create: true
+        owner: "{{ hostvars[account_result.ansible_managed_target].ansible_runtime_user }}"
+        group: "{{ hostvars[account_result.ansible_managed_target].ansible_runtime_user }}"
+        mode: "0600"
+      delegate_to: "{{ account_result.ansible_managed_target }}"
+      become: true
+      vars:
+        ansible_become: true
+        ansible_ssh_common_args: "{{ ansible_bootstrap_ssh_common_args }}"
+      loop: "{{ ansible_managed_accounts.results }}"
+      loop_control:
+        loop_var: account_result
+        label: "{{ account_result.ansible_managed_target }}"
+      when: hostvars[account_result.ansible_managed_target].ansible_rollout_become | bool
+      no_log: true
+
+    - name: Authorize infrastructure trust-zone keys without privilege escalation
+      ansible.builtin.lineinfile:
+        path: "{{ (account_result.stdout.split(':'))[5] }}/.ssh/authorized_keys"
+        line: >-
+          {{ (ansible_controller_ssh_keys
+              | selectattr('name', 'equalto',
+                           hostvars[account_result.ansible_managed_target].ansible_runtime_key)
+              | first).public_key | trim }}
+        create: true
+        owner: "{{ hostvars[account_result.ansible_managed_target].ansible_runtime_user }}"
+        group: "{{ hostvars[account_result.ansible_managed_target].ansible_runtime_user }}"
+        mode: "0600"
+      delegate_to: "{{ account_result.ansible_managed_target }}"
+      become: false
+      vars:
+        ansible_become: false
+        ansible_ssh_common_args: "{{ ansible_bootstrap_ssh_common_args }}"
+      loop: "{{ ansible_managed_accounts.results }}"
+      loop_control:
+        loop_var: account_result
+        label: "{{ account_result.ansible_managed_target }}"
+      when: not (hostvars[account_result.ansible_managed_target].ansible_rollout_become | bool)
+      no_log: true
+
+    - name: Read ED25519 host keys through existing trusted access
+      ansible.builtin.slurp:
+        src: /etc/ssh/ssh_host_ed25519_key.pub
+      delegate_to: "{{ ansible_managed_target }}"
+      become: false
+      vars:
+        ansible_become: false
+        ansible_ssh_common_args: "{{ ansible_bootstrap_ssh_common_args }}"
+      loop: "{{ groups['ansible_managed_targets'] }}"
+      loop_control:
+        loop_var: ansible_managed_target
+        label: "{{ ansible_managed_target }}"
+      register: ansible_managed_host_keys
+
+    - name: Publish managed inventory and verified host keys on Jenkins agent
+      ansible.builtin.include_role:
+        name: ans
+        tasks_from: publish.yml
+      vars:
+        ansible_controller_operator: "{{ jenkins_ansible_user }}"
+        ansible_controller_group: "{{ jenkins_ansible_group }}"
+        ansible_controller_home: "{{ jenkins_ansible_home }}"
+
+    - name: Validate key-only Ansible access from Jenkins agent
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - "{{ jenkins_ansible_user }}"
+          - --
+          - "{{ ansible_controller_venv }}/bin/ansible"
+          - all
+          - -m
+          - ansible.builtin.ping
+      become: true
+      environment:
+        HOME: "{{ jenkins_ansible_home }}"
+        ANSIBLE_CONFIG: "{{ ansible_controller_config_path }}"
+      register: ansible_agent_estate_ping
+      changed_when: false
+
+    - name: Remove legacy Ansible credentials from Jenkins service account
+      ansible.builtin.file:
+        path: "{{ jenkins_agent_home }}/.ssh/horus"
+        state: absent
+      become: true
+      when: jenkins_agent_home != jenkins_ansible_home

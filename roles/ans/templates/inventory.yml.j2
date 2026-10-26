@@ -1,0 +1,14 @@
+---
+all:
+  vars:
+    ansible_become: false
+  hosts:
+{% for target in groups['ansible_managed_targets'] | sort %}
+    {{ target }}:
+      ansible_host: {{ hostvars[target].ansible_host }}
+      ansible_user: {{ hostvars[target].ansible_runtime_user }}
+      ansible_private_key_file: {{ ansible_controller_ssh_dir }}/{{ hostvars[target].ansible_runtime_key_filename }}
+{% if hostvars[target].ansible_port is defined %}
+      ansible_port: {{ hostvars[target].ansible_port }}
+{% endif %}
+{% endfor %}

@@ -1,0 +1,37 @@
+---
+- name: Require Vikunja credentials
+  ansible.builtin.assert:
+    that:
+      - vikunja_postgres_user == 'vikunja'
+      - vikunja_postgres_password | length > 0
+      - vikunja_oidc_client_secret | length > 0
+      - vikunja_service_secret | length >= 32
+    fail_msg: Required Vikunja credentials are missing from KeePass.
+  no_log: true
+
+- name: Install Vikunja components
+  ansible.builtin.include_tasks: install.yml
+- name: Prepare Vikunja PostgreSQL database
+  ansible.builtin.include_tasks: database.yml
+- name: Prepare Vikunja single sign-on
+  ansible.builtin.include_tasks: oidc.yml
+- name: Configure Vikunja
+  ansible.builtin.include_tasks: config.yml
+- name: Install shared operator tools for Vikunja
+  ansible.builtin.include_role:
+    name: common_tools
+- name: Install and configure Fluent Bit for Vikunja
+  ansible.builtin.include_role:
+    name: fluent_bit
+- name: Apply pending Vikunja handlers
+  ansible.builtin.meta: flush_handlers
+- name: Publish Vikunja in central DNS
+  ansible.builtin.include_role:
+    name: technitium_dns
+  vars:
+    technitium_dns_record_name: "{{ vikunja_public_hostname }}"
+    technitium_dns_record_address: "{{ horus_portal_dns_address }}"
+- name: Publish Vikunja through NGINX
+  ansible.builtin.include_tasks: publish.yml
+- name: Validate Vikunja
+  ansible.builtin.include_tasks: test.yml

@@ -1,0 +1,36 @@
+---
+- name: Require Jenkins agent credentials
+  ansible.builtin.assert:
+    that:
+      - jenkins_agent_ssh_public_key | length > 0
+      - jenkins_agent_ssh_private_key | length > 0
+      - jenkins_agent_account_password_hash | length > 0
+      - jenkins_oidc_client_secret | length > 0
+      - jenkins_recovery_password | length > 0
+    fail_msg: Required Jenkins agent credentials are missing from KeePass.
+  no_log: true
+
+- name: Install Jenkins agent components
+  ansible.builtin.include_tasks: install.yml
+- name: Configure Jenkins agent
+  ansible.builtin.include_tasks: config.yml
+- name: Install Ansible control tooling on Jenkins agent
+  ansible.builtin.include_role:
+    name: ans
+  vars:
+    ansible_controller_operator: "{{ jenkins_ansible_user }}"
+    ansible_controller_group: "{{ jenkins_ansible_group }}"
+    ansible_controller_home: "{{ jenkins_ansible_home }}"
+- name: Install shared operator tools for Jenkins agent
+  ansible.builtin.include_role:
+    name: common_tools
+- name: Install and configure Fluent Bit for Jenkins agent
+  ansible.builtin.include_role:
+    name: fluent_bit
+- name: Register agent on Jenkins controller
+  ansible.builtin.include_role:
+    name: jnk
+    tasks_from: agent.yml
+- name: Validate Jenkins agent
+  ansible.builtin.include_tasks: test.yml
+

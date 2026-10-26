@@ -1,0 +1,8 @@
+---
+
+technitium_api_url: ""
+technitium_api_token: ""
+technitium_dns_zone: ""
+technitium_dns_record_name: ""
+technitium_dns_record_address: ""
+technitium_dns_record_ttl: 300

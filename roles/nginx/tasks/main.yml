@@ -1,0 +1,26 @@
+---
+# Service entrypoint. Shared installers are owned by this service role.
+
+- name: Install service-specific components
+  ansible.builtin.include_tasks: install.yml
+- name: Configure service
+  ansible.builtin.include_tasks: config.yml
+- name: Configure service logging
+  ansible.builtin.include_tasks: logging.yml
+- name: Install shared operator tools
+  ansible.builtin.include_role:
+    name: common_tools
+- name: Install and configure Fluent Bit
+  ansible.builtin.include_role:
+    name: fluent_bit
+- name: Apply pending NGINX configuration handlers
+  ansible.builtin.meta: flush_handlers
+- name: Publish the HoRus portal in central DNS
+  ansible.builtin.include_role:
+    name: technitium_dns
+  vars:
+    technitium_dns_record_name: "{{ nginx_server_name }}"
+    technitium_dns_record_address: "{{ horus_portal_dns_address }}"
+- name: Validate service
+  ansible.builtin.include_tasks: test.yml
+

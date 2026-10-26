@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HoRus Control Plane</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v={{ nginx_portal_asset_version }}">
+  <style>
+    :root { color-scheme:dark; --panel:#111d2d; --line:#26364d; --text:#eef5ff; --muted:#91a4bd; --accent:#00b7ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; font-family:Segoe UI,Roboto,Arial,sans-serif; color:var(--text); background:radial-gradient(circle at 75% 0,#123259 0,transparent 35%),linear-gradient(145deg,#050b14,#0b1727 55%,#08111e); }
+    header { padding:clamp(22px,4vw,36px) clamp(18px,5vw,76px); border-bottom:1px solid var(--line); background:rgba(5,11,20,.78); backdrop-filter:blur(12px); }
+    .brand { display:flex; align-items:center; gap:clamp(12px,2vw,20px); }
+    .brand-logo { width:clamp(122px,14vw,170px); height:auto; display:block; }
+    h1 { margin:0; font-size:clamp(24px,3.5vw,42px); letter-spacing:.04em; }
+    header p { margin:8px 0 0 clamp(0px,16vw,190px); color:var(--muted); font-size:clamp(13px,1.4vw,16px); }
+    main { padding:clamp(24px,4vw,42px) clamp(18px,5vw,76px) 64px; }
+    .page-title { display:flex; justify-content:space-between; align-items:end; gap:20px; margin-bottom:22px; }
+    .page-title h2 { margin:0; font-size:clamp(19px,2vw,23px); }
+    #status { color:var(--muted); font-size:14px; white-space:nowrap; }
+    #services { display:flex; flex-direction:column; gap:16px; }
+    details { border:1px solid var(--line); border-radius:16px; background:rgba(9,20,35,.72); overflow:hidden; }
+    summary { cursor:pointer; list-style:none; user-select:none; }
+    summary::-webkit-details-marker { display:none; }
+    .group-summary { display:flex; align-items:center; gap:12px; padding:17px 20px; font-weight:750; letter-spacing:.12em; color:#c7d8eb; text-transform:uppercase; }
+    .group-summary::before { content:'›'; color:var(--accent); font-size:25px; line-height:1; transition:transform .18s ease; }
+    details[open] > .group-summary::before { transform:rotate(90deg); }
+    .group-count { margin-left:auto; color:var(--muted); font-size:12px; letter-spacing:0; font-weight:500; }
+    .group-body { padding:4px 18px 20px; }
+    .subgroup { border-color:rgba(245,158,11,.28); background:rgba(17,29,45,.5); }
+    .subgroup + .subgroup { margin-top:14px; }
+    .subgroup-summary { display:flex; align-items:center; gap:10px; padding:14px 16px; color:#f7c86c; font-weight:700; }
+    .subgroup-summary::before { content:'›'; font-size:22px; transition:transform .18s ease; }
+    .subgroup[open] > .subgroup-summary::before { transform:rotate(90deg); }
+    .subgroup .tiles { padding:2px 16px 18px; }
+    .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,168px)); gap:14px; justify-content:start; }
+    .tile { aspect-ratio:1; min-width:0; padding:16px 12px 13px; border:1px solid var(--line); border-radius:16px; color:inherit; text-decoration:none; background:linear-gradient(145deg,rgba(23,39,59,.96),rgba(13,25,41,.96)); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:13px; position:relative; overflow:hidden; transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease; }
+    .tile::before { content:''; position:absolute; inset:0 0 auto; height:3px; background:var(--service-color,var(--accent)); }
+    .tile:hover,.tile:focus-visible { transform:translateY(-3px); border-color:var(--service-color,var(--accent)); box-shadow:0 14px 30px rgba(0,0,0,.28); outline:none; }
+    .tile-icon { width:clamp(52px,5.2vw,76px); height:clamp(52px,5.2vw,76px); object-fit:contain; filter:drop-shadow(0 7px 12px rgba(0,0,0,.28)); }
+    .tile-name { max-width:100%; color:#f4f8ff; font-size:clamp(12px,1.05vw,15px); font-weight:650; line-height:1.2; text-align:center; overflow-wrap:anywhere; }
+    .empty { color:var(--muted); border:1px dashed var(--line); border-radius:16px; padding:28px; }
+    @media (max-width:700px) {
+      header p { margin-left:0; }
+      .brand { align-items:flex-start; }
+      .tiles { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+      .tile { aspect-ratio:auto; min-height:134px; }
+      .tile-icon { width:60px; height:60px; }
+      .group-body { padding:2px 12px 16px; }
+      .subgroup .tiles { padding:2px 12px 14px; }
+    }
+    @media (max-width:380px) {
+      .brand { flex-direction:column; }
+      .page-title { align-items:flex-start; flex-direction:column; gap:7px; }
+      .tiles { grid-template-columns:1fr; }
+      .tile { min-height:142px; }
+    }
+  </style>
+</head>
+<body>
+  <header><div class="brand"><img class="brand-logo" src="/bsl-logo.svg?v={{ nginx_portal_asset_version }}" alt="Benden-SysLab"><h1>HoRus Control Plane</h1></div><p>Внутренняя панель управления инфраструктурой</p></header>
+  <main><div class="page-title"><h2>Доступные сервисы</h2><span id="status">Загрузка…</span></div><section id="services"></section></main>
+  <script>
+    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    const serviceIcons = {
+      'Vault': '/icons/vault.svg',
+      'Access': '/icons/keycloak.svg',
+      'Gitea': '/icons/gitea.svg',
+      'Wiki.js': '/icons/wikijs.svg',
+      'Vikunja': '/icons/vikunja.svg',
+      'Registry': '/icons/registry.svg',
+      'Jenkins': '/icons/jenkins.svg'
+    };
+    const assetUrl = path => `${path || '/favicon.svg'}${String(path || '').includes('?') ? '&' : '?'}v={{ nginx_portal_asset_version }}`;
+    const tile = service => `<a class="tile" style="--service-color:${escapeHtml(service.color || '#00b7ff')}" href="${escapeHtml(service.url)}" title="${escapeHtml(service.description || service.name)}"><img class="tile-icon" src="${escapeHtml(assetUrl(service.icon || serviceIcons[service.name]))}" alt="${escapeHtml(service.name)}" loading="lazy"><span class="tile-name">${escapeHtml(service.label || service.name)}</span></a>`;
+    const tileGrid = services => `<div class="tiles">${services.map(tile).join('')}</div>`;
+    function renderCategory(category, services) {
+      const sorted = [...services].sort((a,b) => (a.order || 999) - (b.order || 999));
+      const direct = sorted.filter(service => !service.subcategory);
+      const subgroups = sorted.reduce((result, service) => { if (service.subcategory) (result[service.subcategory] ||= []).push(service); return result; }, {});
+      const nested = Object.entries(subgroups).map(([name, items]) => `<details class="subgroup" open><summary class="subgroup-summary"><span>${escapeHtml(name)}</span><span class="group-count">${items.length}</span></summary>${tileGrid(items)}</details>`).join('');
+      return `<details class="portal-group" open><summary class="group-summary"><span>${escapeHtml(category)}</span><span class="group-count">${sorted.length}</span></summary><div class="group-body">${direct.length ? tileGrid(direct) : ''}${nested}</div></details>`;
+    }
+    async function loadServices() {
+      const root = document.getElementById('services');
+      const status = document.getElementById('status');
+      try {
+        const listing = await fetch('/portal-services/', {cache:'no-store'}).then(response => response.json());
+        const files = listing.filter(item => item.type === 'file' && item.name.endsWith('.json'));
+        const services = await Promise.all(files.map(item => fetch('/portal-services/' + encodeURIComponent(item.name), {cache:'no-store'}).then(response => response.json())));
+        const categories = ['NET', 'Infra', 'Service'];
+        const grouped = services.reduce((result, service) => { const category = service.category || 'Service'; (result[category] ||= []).push(service); return result; }, {});
+        root.innerHTML = categories.filter(category => grouped[category]?.length).map(category => renderCategory(category, grouped[category])).join('');
+        if (!services.length) root.innerHTML = '<div class="empty">Сервисы будут появляться здесь по мере установки этапов.</div>';
+        status.textContent = `Активно: ${services.length}`;
+      } catch (_) { root.innerHTML = '<div class="empty">Не удалось загрузить список сервисов.</div>'; status.textContent = 'Ошибка'; }
+    }
+    loadServices();
+  </script>
+</body>
+</html>

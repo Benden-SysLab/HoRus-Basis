@@ -1,0 +1,39 @@
+---
+- name: Require Wiki.js credentials
+  ansible.builtin.assert:
+    that:
+      - wiki_postgres_user == 'wiki'
+      - wiki_postgres_password | length > 0
+      - wiki_bootstrap_email | length > 0
+      - wiki_bootstrap_password | length >= 8
+      - wiki_oidc_client_secret | length > 0
+    fail_msg: Required Wiki.js credentials are missing from KeePass.
+  no_log: true
+
+- name: Install Wiki.js components
+  ansible.builtin.include_tasks: install.yml
+- name: Prepare Wiki.js PostgreSQL database
+  ansible.builtin.include_tasks: database.yml
+- name: Configure Wiki.js
+  ansible.builtin.include_tasks: config.yml
+- name: Install shared operator tools
+  ansible.builtin.include_role:
+    name: common_tools
+- name: Install and configure Fluent Bit
+  ansible.builtin.include_role:
+    name: fluent_bit
+- name: Apply pending Wiki.js handlers
+  ansible.builtin.meta: flush_handlers
+- name: Prepare Wiki.js single sign-on
+  ansible.builtin.include_tasks: oidc.yml
+- name: Publish Wiki.js in central DNS
+  ansible.builtin.include_role:
+    name: technitium_dns
+  vars:
+    technitium_dns_record_name: "{{ wiki_public_hostname }}"
+    technitium_dns_record_address: "{{ horus_portal_dns_address }}"
+- name: Publish Wiki.js through NGINX
+  ansible.builtin.include_tasks: publish.yml
+- name: Validate Wiki.js
+  ansible.builtin.include_tasks: test.yml
+

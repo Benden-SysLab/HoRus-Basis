@@ -1,0 +1,6 @@
+---
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Stage 01 - NGINX foundation
+  ansible.builtin.import_playbook: stages/01_nginx.yml

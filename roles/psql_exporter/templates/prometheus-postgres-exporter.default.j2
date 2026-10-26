@@ -1,0 +1,4 @@
+# Managed by HoRus-Basis. Local Unix-socket peer authentication.
+DATA_SOURCE_NAME='postgresql:///postgres?host=/var/run/postgresql&user=prometheus'
+ARGS='--web.listen-address={{ postgres_exporter_listen_address }}:{{ postgres_exporter_port }}'
+

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OCI Registry">
+  <defs><linearGradient id="r" x1="8" y1="8" x2="56" y2="56"><stop stop-color="#c084fc"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs>
+  <path fill="none" stroke="url(#r)" stroke-width="4" stroke-linejoin="round" d="m32 6 23 13v26L32 58 9 45V19Z"/>
+  <path fill="none" stroke="#c4b5fd" stroke-width="4" stroke-linejoin="round" d="m9 19 23 13 23-13M32 32v26M20 13l24 13"/>
+</svg>

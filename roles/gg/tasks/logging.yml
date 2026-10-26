@@ -1,0 +1,19 @@
+---
+- name: Create GitGuardian log file
+  ansible.builtin.file:
+    path: "{{ gitguardian_log_file }}"
+    state: touch
+    owner: "{{ gitguardian_user }}"
+    group: "{{ gitguardian_group }}"
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+
+- name: Install GitGuardian log rotation policy
+  ansible.builtin.template:
+    src: gitguardian.logrotate.j2
+    dest: /etc/logrotate.d/horus-gitguardian
+    owner: root
+    group: root
+    mode: "0644"
+

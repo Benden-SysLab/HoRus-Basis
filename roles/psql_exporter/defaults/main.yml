@@ -1,0 +1,9 @@
+---
+
+postgres_exporter_package_name: prometheus-postgres-exporter
+postgres_exporter_service_name: prometheus-postgres-exporter
+postgres_exporter_listen_address: 127.0.0.1
+postgres_exporter_port: 9187
+postgres_exporter_defaults_path: /etc/default/prometheus-postgres-exporter
+
+

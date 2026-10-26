@@ -1,0 +1,77 @@
+---
+- name: Install Vikunja configuration
+  ansible.builtin.template:
+    src: config.yml.j2
+    dest: "{{ vikunja_config_path }}"
+    owner: root
+    group: "{{ vikunja_system_group }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart Vikunja
+
+- name: Install Vikunja systemd service
+  ansible.builtin.template:
+    src: vikunja.service.j2
+    dest: /etc/systemd/system/vikunja.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Vikunja
+
+- name: Apply Vikunja service configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start Vikunja
+  ansible.builtin.systemd_service:
+    name: "{{ vikunja_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Start and diagnose Vikunja readiness
+  block:
+    - name: Wait for local Vikunja health endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ vikunja_http_port }}/api/v1/info"
+        status_code: 200
+      register: vikunja_ready
+      retries: 18
+      delay: 5
+      until: vikunja_ready.status == 200
+  rescue:
+    - name: Read failed Vikunja service status
+      ansible.builtin.command:
+        argv: [systemctl, --no-pager, --full, status, vikunja]
+      register: vikunja_failed_status
+      changed_when: false
+      failed_when: false
+
+    - name: Read failed Vikunja journal
+      ansible.builtin.command:
+        argv: [journalctl, --no-pager, -u, vikunja, -n, "120"]
+      register: vikunja_failed_journal
+      changed_when: false
+      failed_when: false
+
+    - name: Read failed Vikunja application log
+      ansible.builtin.command:
+        argv: [tail, -n, "200", "{{ vikunja_log_dir }}/vikunja.log"]
+      register: vikunja_failed_application_log
+      changed_when: false
+      failed_when: false
+
+    - name: Report Vikunja startup failure
+      ansible.builtin.fail:
+        msg: |-
+          Vikunja did not become ready.
+          === systemctl status ===
+          {{ vikunja_failed_status.stdout | default('unavailable') }}
+          {{ vikunja_failed_status.stderr | default('') }}
+          === journal ===
+          {{ vikunja_failed_journal.stdout | default('unavailable') }}
+          {{ vikunja_failed_journal.stderr | default('') }}
+          === application log ===
+          {{ vikunja_failed_application_log.stdout | default('unavailable') }}
+          {{ vikunja_failed_application_log.stderr | default('') }}

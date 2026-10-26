@@ -1,0 +1,51 @@
+---
+jenkins_version: 2.580.1
+jenkins_java_package: openjdk-21-jre-headless
+jenkins_http_port: 8080
+jenkins_home: /var/lib/jenkins
+jenkins_config_dir: /etc/jenkins
+jenkins_casc_path: /etc/jenkins/jenkins.yaml
+jenkins_plugins_path: /etc/jenkins/plugins.txt
+jenkins_plugin_manager_version: 2.15.0
+jenkins_plugin_manager_path: /usr/local/lib/jenkins-plugin-manager.jar
+jenkins_plugin_manager_url: "https://github.com/jenkinsci/plugin-installation-manager-tool/releases/download/{{ jenkins_plugin_manager_version }}/jenkins-plugin-manager-{{ jenkins_plugin_manager_version }}.jar"
+jenkins_plugins:
+  - configuration-as-code
+  - oic-auth
+  - matrix-auth
+  - workflow-aggregator
+  - git
+  - credentials-binding
+  - ssh-slaves
+
+jenkins_public_hostname: ""
+jenkins_public_url: ""
+jenkins_oidc_client_id: jenkins
+jenkins_oidc_client_secret: ""
+jenkins_oidc_realm: ""
+jenkins_oidc_discovery_url: ""
+jenkins_oidc_redirect_uri: "{{ jenkins_public_url }}/securityRealm/finishLogin"
+jenkins_oidc_logout_uri: "{{ jenkins_public_url }}/OicLogout"
+jenkins_admin_user: ""
+jenkins_recovery_user: ""
+jenkins_recovery_password: ""
+jenkins_agent_enabled: false
+jenkins_agent_name: ""
+jenkins_agent_address: ""
+jenkins_agent_user: ""
+jenkins_agent_remote_fs: /var/lib/jenkins-agent
+jenkins_agent_executors: 1
+jenkins_agent_labels: linux horus
+jenkins_agent_credentials_id: horus-agent-ssh
+jenkins_agent_ssh_private_key: ""
+jenkins_agent_ssh_host_key: ""
+
+jenkins_keycloak_host: horus-iam-srv01
+jenkins_keycloak_url: http://127.0.0.1:8080
+jenkins_nginx_host: horus-lb-srv01
+jenkins_nginx_upstream_address: ""
+jenkins_nginx_conf_path: /etc/nginx/conf.d/70_jenkins.conf
+jenkins_nginx_manifest_path: /var/www/horus/services/jenkins.json
+jenkins_nginx_tls_certificate: /etc/nginx/tls/horus-admin.crt
+jenkins_nginx_tls_key: /etc/nginx/tls/horus-admin.key
+

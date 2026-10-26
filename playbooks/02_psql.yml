@@ -1,0 +1,6 @@
+---
+- name: Install PostgreSQL baseline
+  hosts: databases
+  become: true
+  roles:
+    - psql

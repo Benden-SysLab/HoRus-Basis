@@ -1,0 +1,31 @@
+---
+ansible_controller_version: "{{ ansible_core_version }}"
+ansible_controller_group: horus-ansible
+ansible_controller_operator: "{{ ansible_user }}"
+ansible_controller_root: /opt/horus/ansible
+ansible_controller_venv: "{{ ansible_controller_root }}/venv"
+ansible_controller_workspace: /srv/horus/ansible
+ansible_controller_inventory_dir: "{{ ansible_controller_workspace }}/inventory"
+ansible_controller_projects_dir: "{{ ansible_controller_workspace }}/projects"
+ansible_controller_roles_dir: "{{ ansible_controller_workspace }}/roles"
+ansible_controller_collections_dir: "{{ ansible_controller_workspace }}/collections"
+ansible_controller_config_dir: /etc/ansible
+ansible_controller_config_path: "{{ ansible_controller_config_dir }}/ansible.cfg"
+ansible_controller_log_dir: /var/log/ansible
+ansible_controller_log_path: "{{ ansible_controller_log_dir }}/ansible.log"
+ansible_controller_home: "/home/{{ ansible_controller_operator }}"
+ansible_controller_ssh_dir: "{{ ansible_controller_home }}/.ssh/horus"
+ansible_controller_known_hosts_path: "{{ ansible_controller_ssh_dir }}/known_hosts"
+ansible_controller_inventory_path: "{{ ansible_controller_inventory_dir }}/horus.yml"
+ansible_controller_ssh_keys: []
+ansible_controller_commands:
+  - ansible
+  - ansible-config
+  - ansible-console
+  - ansible-doc
+  - ansible-galaxy
+  - ansible-inventory
+  - ansible-playbook
+  - ansible-pull
+  - ansible-vault
+

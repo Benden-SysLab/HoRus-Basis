@@ -1,0 +1,55 @@
+---
+
+- name: Install PostgreSQL exporter
+  ansible.builtin.apt:
+    name: "{{ postgres_exporter_package_name }}"
+    state: present
+    update_cache: false
+
+- name: Create local exporter role
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -X
+      - -v
+      - ON_ERROR_STOP=1
+      - -d
+      - postgres
+      - -c
+      - >-
+        DO $$ BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'prometheus')
+        THEN CREATE ROLE prometheus LOGIN;
+        END IF;
+        GRANT pg_monitor TO prometheus;
+        END $$;
+  changed_when: false
+  no_log: true
+
+- name: Configure local exporter endpoint
+  ansible.builtin.template:
+    src: prometheus-postgres-exporter.default.j2
+    dest: "{{ postgres_exporter_defaults_path }}"
+    owner: root
+    group: root
+    mode: '0640'
+  notify: Restart PostgreSQL exporter
+
+- name: Enable and start PostgreSQL exporter
+  ansible.builtin.systemd_service:
+    name: "{{ postgres_exporter_service_name }}"
+    enabled: true
+    state: started
+
+- name: Check local exporter metrics
+  ansible.builtin.uri:
+    url: "http://{{ postgres_exporter_listen_address }}:{{ postgres_exporter_port }}/metrics"
+    status_code: 200
+    return_content: false
+  changed_when: false
+
+

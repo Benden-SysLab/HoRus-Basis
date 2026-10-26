@@ -1,0 +1,40 @@
+---
+- name: Install Wiki.js NGINX service block
+  ansible.builtin.template:
+    src: nginx/60_wiki.conf.j2
+    dest: "{{ wiki_nginx_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  delegate_to: "{{ wiki_nginx_host }}"
+  register: wiki_nginx_block
+
+- name: Install Wiki.js dashboard manifest
+  ansible.builtin.template:
+    src: nginx/wiki.json.j2
+    dest: "{{ wiki_nginx_manifest_path }}"
+    owner: root
+    group: www-data
+    mode: "0644"
+  delegate_to: "{{ wiki_nginx_host }}"
+
+- name: Validate NGINX after publishing Wiki.js
+  ansible.builtin.command: nginx -t
+  delegate_to: "{{ wiki_nginx_host }}"
+  changed_when: false
+
+- name: Reload NGINX after publishing Wiki.js
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: reloaded
+  delegate_to: "{{ wiki_nginx_host }}"
+  when: wiki_nginx_block.changed
+
+- name: Check Wiki.js through NGINX
+  ansible.builtin.uri:
+    url: https://127.0.0.1/
+    headers:
+      Host: "{{ wiki_public_hostname }}"
+    validate_certs: false
+    status_code: 200
+  delegate_to: "{{ wiki_nginx_host }}"

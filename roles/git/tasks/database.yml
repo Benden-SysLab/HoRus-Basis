@@ -1,0 +1,74 @@
+---
+- name: Install Gitea PostgreSQL access rule
+  ansible.builtin.lineinfile:
+    path: "{{ gitea_postgres_config_path }}"
+    line: >-
+      host    {{ gitea_postgres_database }}    {{ gitea_postgres_user }}
+      {{ hostvars['horus-git-srv01'].ansible_host }}/32    scram-sha-256
+    insertafter: EOF
+    state: present
+  delegate_to: horus-db-srv03
+  register: gitea_postgres_hba
+
+- name: Reload PostgreSQL after Gitea policy change
+  ansible.builtin.systemd_service:
+    name: "{{ gitea_postgres_service_name }}"
+    state: reloaded
+  delegate_to: horus-db-srv03
+  when: gitea_postgres_hba.changed
+
+- name: Check Gitea PostgreSQL role
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -A, -t, -d, postgres, -c, "SELECT 1 FROM pg_roles WHERE rolname='gitea';"]
+  delegate_to: horus-db-srv03
+  register: gitea_postgres_role_exists
+  changed_when: false
+
+- name: Create Gitea PostgreSQL role
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, postgres, -c, "CREATE ROLE gitea LOGIN;"]
+  delegate_to: horus-db-srv03
+  when: gitea_postgres_role_exists.stdout | trim != '1'
+
+- name: Set Gitea PostgreSQL password
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, postgres]
+    stdin: |-
+      \getenv gitea_password GITEA_POSTGRES_PASSWORD
+      ALTER ROLE gitea PASSWORD :'gitea_password';
+  environment:
+    GITEA_POSTGRES_PASSWORD: "{{ gitea_postgres_password }}"
+  delegate_to: horus-db-srv03
+  changed_when: false
+  no_log: true
+
+- name: Check Gitea PostgreSQL database
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -A, -t, -d, postgres, -c, "SELECT 1 FROM pg_database WHERE datname='gitea';"]
+  delegate_to: horus-db-srv03
+  register: gitea_postgres_database_exists
+  changed_when: false
+
+- name: Create Gitea PostgreSQL database
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, createdb, -O, gitea, gitea]
+  delegate_to: horus-db-srv03
+  when: gitea_postgres_database_exists.stdout | trim != '1'
+
+- name: Restrict Gitea database connection privileges
+  ansible.builtin.command:
+    argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, postgres]
+    stdin: |-
+      REVOKE CONNECT ON DATABASE gitea FROM PUBLIC;
+      GRANT CONNECT ON DATABASE gitea TO gitea;
+  delegate_to: horus-db-srv03
+  changed_when: false
+
+- name: Verify Gitea database login from Gitea host
+  ansible.builtin.command:
+    argv: [psql, -h, "{{ gitea_postgres_host }}", -p, "{{ gitea_postgres_port }}", -U, gitea, -d, gitea, -X, -A, -t, -c, "SELECT current_user;"]
+  environment:
+    PGPASSWORD: "{{ gitea_postgres_password }}"
+  register: gitea_database_login
+  changed_when: false
+  no_log: true

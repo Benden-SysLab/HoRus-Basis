@@ -1,0 +1,69 @@
+---
+- name: Require Keycloak PostgreSQL username
+  ansible.builtin.assert:
+    that:
+      - access_postgres_user == 'keycloak'
+    fail_msg: >-
+      KeePass entry {{ keepass_access_postgres_entry }} must exist and use
+      username keycloak.
+
+- name: Require Keycloak PostgreSQL password
+  ansible.builtin.assert:
+    that:
+      - access_postgres_password | length > 0
+    fail_msg: >-
+      KeePass entry {{ keepass_access_postgres_entry }} must contain a password.
+  no_log: true
+
+- name: Require Keycloak bootstrap username
+  ansible.builtin.assert:
+    that:
+      - access_admin_user | length > 0
+    fail_msg: >-
+      KeePass entry {{ keepass_access_bootstrap_entry }} must contain a username.
+
+- name: Require Keycloak bootstrap password
+  ansible.builtin.assert:
+    that:
+      - access_admin_password | length > 0
+    fail_msg: >-
+      KeePass entry {{ keepass_access_bootstrap_entry }} must contain a password.
+  no_log: true
+
+- name: Require personal Access account credentials
+  ansible.builtin.assert:
+    that:
+      - access_personal_user | length > 0
+      - access_personal_email | length > 0
+      - access_personal_password | length > 0
+    fail_msg: >-
+      KeePass entry {{ keepass_access_personal_entry }} must contain the
+      configured personal account and a generated password.
+  no_log: true
+
+- name: Install Access components
+  ansible.builtin.include_tasks: install.yml
+- name: Prepare Access PostgreSQL database
+  ansible.builtin.include_tasks: database.yml
+- name: Configure Access
+  ansible.builtin.include_tasks: config.yml
+- name: Configure personal Access administrator
+  ansible.builtin.include_tasks: personal_user.yml
+- name: Install shared operator tools
+  ansible.builtin.include_role:
+    name: common_tools
+- name: Install and configure Fluent Bit
+  ansible.builtin.include_role:
+    name: fluent_bit
+- name: Apply pending Access handlers
+  ansible.builtin.meta: flush_handlers
+- name: Publish Access in central DNS
+  ansible.builtin.include_role:
+    name: technitium_dns
+  vars:
+    technitium_dns_record_name: "{{ access_public_hostname }}"
+    technitium_dns_record_address: "{{ horus_portal_dns_address }}"
+- name: Publish Access through NGINX
+  ansible.builtin.include_tasks: publish.yml
+- name: Validate Access
+  ansible.builtin.include_tasks: test.yml
