@@ -100,5 +100,228 @@
       register: gitea_keepass_ensure
       changed_when: "'created=true' in gitea_keepass_ensure.stdout"
       no_log: true
+
+    - name: Require Gitea controller SSH client paths
+      ansible.builtin.assert:
+        that:
+          - gitea_controller_windows_private_key_source | length > 0
+          - gitea_controller_windows_identity_file | length > 0
+          - gitea_controller_windows_ssh_config_path | length > 0
+          - gitea_controller_wsl_private_key_path | length > 0
+          - gitea_controller_wsl_ssh_config_path | length > 0
+        fail_msg: Gitea controller SSH client paths are missing from the private inventory overlay.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Check Gitea controller private key source
+      ansible.builtin.stat:
+        path: "{{ gitea_controller_windows_private_key_source }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: gitea_controller_private_key_source
+
+    - name: Require Gitea controller private key source
+      ansible.builtin.assert:
+        that: gitea_controller_private_key_source.stat.isreg | default(false)
+        fail_msg: >-
+          Gitea SSH private key was not found at
+          {{ gitea_controller_windows_private_key_source }}.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Create WSL controller SSH directory
+      ansible.builtin.file:
+        path: "{{ gitea_controller_wsl_private_key_path | dirname }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Install protected Gitea private key in WSL
+      ansible.builtin.copy:
+        src: "{{ gitea_controller_windows_private_key_source }}"
+        dest: "{{ gitea_controller_wsl_private_key_path }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      no_log: true
+
+    - name: Configure Gitea SSH client in WSL
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ inventory_dir }}/../scripts/configure_gitea_ssh_client.py"
+          - --config
+          - "{{ gitea_controller_wsl_ssh_config_path }}"
+          - --host
+          - "{{ gitea_public_hostname }}"
+          - --hostname
+          - "{{ gitea_public_hostname }}"
+          - --user
+          - git
+          - --port
+          - "{{ gitea_ssh_public_port | string }}"
+          - --identity-file
+          - "{{ gitea_controller_wsl_private_key_path }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: gitea_wsl_ssh_client
+      changed_when: "'changed=true' in gitea_wsl_ssh_client.stdout"
+
+    - name: Configure Gitea SSH client in Windows
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ inventory_dir }}/../scripts/configure_gitea_ssh_client.py"
+          - --config
+          - "{{ gitea_controller_windows_ssh_config_path }}"
+          - --host
+          - "{{ gitea_public_hostname }}"
+          - --hostname
+          - "{{ gitea_public_hostname }}"
+          - --user
+          - git
+          - --port
+          - "{{ gitea_ssh_public_port | string }}"
+          - --identity-file
+          - "{{ gitea_controller_windows_identity_file }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: gitea_windows_ssh_client
+      changed_when: "'changed=true' in gitea_windows_ssh_client.stdout"
+
+    - name: Validate WSL Gitea SSH client selection
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - -G
+          - -F
+          - "{{ gitea_controller_wsl_ssh_config_path }}"
+          - "{{ gitea_public_hostname }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: gitea_wsl_ssh_selection
+      changed_when: false
+
+    - name: Require expected WSL Gitea SSH client selection
+      ansible.builtin.assert:
+        that:
+          - "'user git' in gitea_wsl_ssh_selection.stdout"
+          - "('port ' ~ (gitea_ssh_public_port | string)) in gitea_wsl_ssh_selection.stdout"
+          - "('identityfile ' ~ gitea_controller_wsl_private_key_path) in gitea_wsl_ssh_selection.stdout"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Check gateway private key source on controller
+      ansible.builtin.stat:
+        path: "{{ hostvars['horus-gw-node01'].gateway_private_key_source }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: gitea_gateway_key_source
+
+    - name: Require gateway private key source on controller
+      ansible.builtin.assert:
+        that: gitea_gateway_key_source.stat.isreg | default(false)
+        fail_msg: >-
+          Gateway SSH key was not found at
+          {{ hostvars['horus-gw-node01'].gateway_private_key_source }}.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Create controller SSH key directory
+      ansible.builtin.file:
+        path: "{{ hostvars['horus-gw-node01'].ansible_private_key_file | dirname }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Stage gateway private key with safe WSL permissions
+      ansible.builtin.copy:
+        src: "{{ hostvars['horus-gw-node01'].gateway_private_key_source }}"
+        dest: "{{ hostvars['horus-gw-node01'].ansible_private_key_file }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      no_log: true
+
+    - name: Install Gitea gateway policy scripts
+      ansible.builtin.copy:
+        src: "{{ inventory_dir }}/../scripts/{{ item }}"
+        dest: "/tmp/{{ item }}"
+        owner: root
+        group: root
+        mode: "0700"
+      loop:
+        - apply_gitea_gateway_access.sh
+        - commit_gitea_gateway_access.sh
+      delegate_to: horus-gw-node01
+      run_once: true
+
+    - name: Apply rollback-protected Gitea gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/apply_gitea_gateway_access.sh]
+      environment:
+        HORUS_GITEA_LB_ADDRESS: "{{ hostvars[gitea_nginx_host].ansible_host }}"
+        HORUS_GITEA_ADDRESS: "{{ gitea_nginx_upstream_address }}"
+        HORUS_GITEA_HTTP_PORT: "{{ gitea_http_port | string }}"
+        HORUS_GITEA_SSH_PORT: "{{ gitea_ssh_backend_port | string }}"
+      delegate_to: horus-gw-node01
+      run_once: true
+      register: gitea_gateway_policy
+      changed_when: "'APPLY_OK' in gitea_gateway_policy.stdout"
+
   roles:
     - git
+
+  post_tasks:
+    - name: Commit verified Gitea gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/commit_gitea_gateway_access.sh]
+      environment:
+        HORUS_GITEA_LB_ADDRESS: "{{ hostvars[gitea_nginx_host].ansible_host }}"
+        HORUS_GITEA_ADDRESS: "{{ gitea_nginx_upstream_address }}"
+        HORUS_GITEA_HTTP_PORT: "{{ gitea_http_port | string }}"
+        HORUS_GITEA_SSH_PORT: "{{ gitea_ssh_backend_port | string }}"
+      delegate_to: horus-gw-node01
+      run_once: true
+      changed_when: gitea_gateway_policy.changed

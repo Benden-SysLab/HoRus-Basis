@@ -16,6 +16,14 @@
     group: root
     mode: "0755"
 
+- name: Create NGINX stream configuration directory
+  ansible.builtin.file:
+    path: "{{ nginx_stream_conf_d_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Create NGINX portal and TLS directories
   ansible.builtin.file:
     path: "{{ item.path }}"

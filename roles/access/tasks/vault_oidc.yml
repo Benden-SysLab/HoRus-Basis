@@ -1,0 +1,295 @@
+---
+- name: Require Vault OIDC bootstrap values
+  ansible.builtin.assert:
+    that:
+      - vault_oidc_client_id | length > 0
+      - vault_oidc_client_secret | length > 0
+      - vault_root_token | length > 0
+      - vault_public_url | length > 0
+      - access_personal_user | length > 0
+    fail_msg: Vault OIDC requires its KeePass client secret and Vault root token.
+  no_log: true
+
+- name: Authenticate Keycloak CLI for Vault integration
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - config
+      - credentials
+      - --config
+      - "{{ vault_oidc_kcadm_config }}"
+      - --server
+      - "http://127.0.0.1:{{ access_http_port }}"
+      - --realm
+      - master
+      - --user
+      - "{{ access_admin_user }}"
+      - --password
+      - "{{ access_admin_password }}"
+  changed_when: false
+  no_log: true
+
+- name: Read Vault OIDC client from Access
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - get
+      - clients
+      - --config
+      - "{{ vault_oidc_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+      - -q
+      - "clientId={{ vault_oidc_client_id }}"
+  register: vault_oidc_clients
+  changed_when: false
+  no_log: true
+
+- name: Create Vault OIDC client in Access
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - create
+      - clients
+      - --config
+      - "{{ vault_oidc_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+      - -s
+      - "clientId={{ vault_oidc_client_id }}"
+      - -s
+      - name=Vault
+      - -s
+      - enabled=true
+      - -s
+      - protocol=openid-connect
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - serviceAccountsEnabled=false
+      - -s
+      - "secret={{ vault_oidc_client_secret }}"
+      - -s
+      - 'redirectUris=["{{ vault_oidc_ui_callback }}","{{ vault_oidc_cli_callback }}"]'
+      - -s
+      - >-
+        webOrigins=["{{ vault_public_url | regex_replace('/$', '') }}"]
+  when: vault_oidc_clients.stdout | from_json | length == 0
+  no_log: true
+
+- name: Read final Vault OIDC client from Access
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - get
+      - clients
+      - --config
+      - "{{ vault_oidc_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+      - -q
+      - "clientId={{ vault_oidc_client_id }}"
+  register: vault_oidc_clients_final
+  changed_when: false
+  no_log: true
+
+- name: Require exactly one Vault OIDC client
+  ansible.builtin.assert:
+    that: vault_oidc_clients_final.stdout | from_json | length == 1
+    fail_msg: Expected exactly one Vault OIDC client in Access.
+
+- name: Keep Vault OIDC client identifier
+  ansible.builtin.set_fact:
+    vault_oidc_client_uuid: >-
+      {{ (vault_oidc_clients_final.stdout | from_json | first).id }}
+  no_log: true
+
+- name: Keep Vault OIDC client current
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - update
+      - "clients/{{ vault_oidc_client_uuid }}"
+      - --config
+      - "{{ vault_oidc_kcadm_config }}"
+      - -r
+      - "{{ access_realm }}"
+      - -s
+      - enabled=true
+      - -s
+      - publicClient=false
+      - -s
+      - standardFlowEnabled=true
+      - -s
+      - directAccessGrantsEnabled=false
+      - -s
+      - "secret={{ vault_oidc_client_secret }}"
+      - -s
+      - 'redirectUris=["{{ vault_oidc_ui_callback }}","{{ vault_oidc_cli_callback }}"]'
+      - -s
+      - >-
+        webOrigins=["{{ vault_public_url | regex_replace('/$', '') }}"]
+  changed_when: false
+  no_log: true
+
+- name: Read HoRus internal TLS certificate for Vault trust
+  ansible.builtin.slurp:
+    src: "{{ access_nginx_tls_certificate }}"
+  delegate_to: "{{ access_nginx_host }}"
+  register: vault_oidc_internal_ca
+
+- name: Trust HoRus internal TLS certificate on Vault host
+  ansible.builtin.copy:
+    content: "{{ vault_oidc_internal_ca.content | b64decode }}"
+    dest: "{{ vault_oidc_ca_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  delegate_to: "{{ vault_oidc_host }}"
+  register: vault_oidc_ca_installed
+
+- name: Refresh Vault host certificate trust
+  ansible.builtin.command: update-ca-certificates
+  delegate_to: "{{ vault_oidc_host }}"
+  when: vault_oidc_ca_installed.changed
+
+- name: Check Access discovery endpoint from Vault host
+  ansible.builtin.uri:
+    url: "{{ vault_oidc_discovery_url }}/.well-known/openid-configuration"
+    method: GET
+    status_code: 200
+    return_content: false
+    validate_certs: true
+    timeout: 15
+  delegate_to: "{{ vault_oidc_host }}"
+  register: vault_oidc_discovery_state
+
+- name: Require Access discovery endpoint from Vault host
+  ansible.builtin.assert:
+    that: vault_oidc_discovery_state.status == 200
+    fail_msg: Vault host cannot reach the Access OIDC discovery endpoint.
+
+- name: Read enabled Vault authentication methods
+  ansible.builtin.command: vault auth list -format=json
+  environment: &vault_oidc_environment
+    VAULT_ADDR: "{{ vault_oidc_vault_addr }}"
+    VAULT_CACERT: "{{ vault_oidc_vault_cacert }}"
+    VAULT_TOKEN: "{{ vault_root_token }}"
+  delegate_to: "{{ vault_oidc_host }}"
+  register: vault_oidc_auth_methods
+  changed_when: false
+  no_log: true
+
+- name: Enable Vault OIDC authentication
+  ansible.builtin.command: >-
+    vault auth enable -path={{ vault_oidc_auth_path }} oidc
+  environment: *vault_oidc_environment
+  delegate_to: "{{ vault_oidc_host }}"
+  when: (vault_oidc_auth_path ~ '/') not in (vault_oidc_auth_methods.stdout | from_json)
+  no_log: true
+
+- name: Configure Vault OIDC authentication
+  ansible.builtin.command:
+    argv:
+      - vault
+      - write
+      - "auth/{{ vault_oidc_auth_path }}/config"
+      - "oidc_discovery_url={{ vault_oidc_discovery_url }}"
+      - "oidc_client_id={{ vault_oidc_client_id }}"
+      - "oidc_client_secret={{ vault_oidc_client_secret }}"
+      - "default_role={{ vault_oidc_role_name }}"
+  environment: *vault_oidc_environment
+  delegate_to: "{{ vault_oidc_host }}"
+  changed_when: false
+  no_log: true
+
+- name: Stage personal Vault administrator policy
+  ansible.builtin.copy:
+    dest: "{{ vault_oidc_admin_policy_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      path "*" {
+        capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"]
+      }
+  delegate_to: "{{ vault_oidc_host }}"
+
+- name: Install personal Vault administrator policy
+  ansible.builtin.command:
+    argv:
+      - vault
+      - policy
+      - write
+      - "{{ vault_oidc_admin_policy_name }}"
+      - "{{ vault_oidc_admin_policy_path }}"
+  environment: *vault_oidc_environment
+  delegate_to: "{{ vault_oidc_host }}"
+  changed_when: false
+  no_log: true
+
+- name: Remove staged Vault administrator policy
+  ansible.builtin.file:
+    path: "{{ vault_oidc_admin_policy_path }}"
+    state: absent
+  delegate_to: "{{ vault_oidc_host }}"
+
+- name: Configure personal Vault administrator OIDC role
+  ansible.builtin.uri:
+    url: >-
+      {{ vault_oidc_vault_addr }}/v1/auth/{{ vault_oidc_auth_path }}/role/{{ vault_oidc_role_name }}
+    method: POST
+    headers:
+      X-Vault-Token: "{{ vault_root_token }}"
+    body_format: json
+    body:
+      role_type: oidc
+      user_claim: preferred_username
+      bound_audiences:
+        - "{{ vault_oidc_client_id }}"
+      bound_claims:
+        preferred_username: "{{ access_personal_user }}"
+      allowed_redirect_uris:
+        - "{{ vault_oidc_ui_callback }}"
+        - "{{ vault_oidc_cli_callback }}"
+      token_policies:
+        - "{{ vault_oidc_admin_policy_name }}"
+      oidc_scopes:
+        - openid
+        - profile
+        - email
+    status_code: 204
+    validate_certs: true
+    ca_path: "{{ vault_oidc_vault_cacert }}"
+  delegate_to: "{{ vault_oidc_host }}"
+  no_log: true
+
+- name: Verify personal Vault OIDC role
+  ansible.builtin.command:
+    argv:
+      - vault
+      - read
+      - -format=json
+      - "auth/{{ vault_oidc_auth_path }}/role/{{ vault_oidc_role_name }}"
+  environment: *vault_oidc_environment
+  delegate_to: "{{ vault_oidc_host }}"
+  register: vault_oidc_role_state
+  changed_when: false
+  no_log: true
+
+- name: Require personal Vault OIDC role
+  ansible.builtin.assert:
+    that:
+      - (vault_oidc_role_state.stdout | from_json).data.user_claim == 'preferred_username'
+      - vault_oidc_admin_policy_name in (vault_oidc_role_state.stdout | from_json).data.token_policies
+    fail_msg: Vault OIDC administrator role verification failed.
+
+- name: Remove Vault OIDC Keycloak CLI session
+  ansible.builtin.file:
+    path: "{{ vault_oidc_kcadm_config }}"
+    state: absent
+  no_log: true

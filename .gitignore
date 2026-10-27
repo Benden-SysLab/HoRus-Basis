@@ -8,11 +8,13 @@ inventory/vault/horus_vault.yml
 # Local operational handoffs may contain live topology and operator paths.
 docs/CODEX_HANDOFF_*.md
 
-# Live gateway policy scripts embed the current network policy. They remain
-# local until converted to fully parameterized templates.
+# Live gateway policy scripts remain local until converted to fully
+# parameterized templates. The Gitea policy is parameterized and tracked.
 scripts/apply_*_gateway_*.sh
 scripts/commit_*_gateway_*.sh
 scripts/audit_*_gateway_*.sh
+!scripts/apply_gitea_gateway_access.sh
+!scripts/commit_gitea_gateway_access.sh
 
 # Local/runtime files
 *.retry

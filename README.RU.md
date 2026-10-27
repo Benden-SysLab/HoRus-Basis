@@ -37,8 +37,8 @@ HoRus-Basis / Ansible
 | 01 | `01_nginx.yml` | `horus-lb-srv01` | NGINX, центральный портал и публикация через Technitium DNS |
 | 02 | `02_psql.yml` | `horus-db-srv03` | PostgreSQL, exporter и сбор логов БД |
 | 03 | `03_vault.yml` | `horus-vlt-srv01` | Vault с хранением в PostgreSQL и публикацией через NGINX |
-| 04 | `04_access.yml` | `horus-iam-srv01` | Keycloak, единый доступ и личная учётная запись администратора |
-| 05 | `05_gitea.yml` | `horus-git-srv01` | Gitea с PostgreSQL и OIDC |
+| 04 | `04_access.yml` | `horus-iam-srv01` | Keycloak, личная учётная запись администратора и OIDC-вход в Vault |
+| 05 | `05_gitea.yml` | `horus-git-srv01` | Gitea с PostgreSQL, OIDC и Git-over-SSH через NGINX |
 | 06 | `06_wiki.yml` | `horus-wiki-srv01` | Wiki.js с PostgreSQL и OIDC |
 | 07 | `07_vikunja.yml` | `horus-vkj-srv01` | Vikunja для задач и планирования, PostgreSQL и OIDC |
 | 08 | `08_registry.yml` | `horus-reg-srv01` | OCI Registry Zot с OIDC |
@@ -96,6 +96,34 @@ Inventory и общие несекретные переменные находя
 SSH-ключи хранятся вне репозитория. Перед принятием нового или изменившегося
 host key проверяйте fingerprint.
 
+Этап 05 поддерживает запись `git.horus.admin` в SSH-конфигах обеих сред
+контроллера. Windows Git и VS Code используют нативный путь к ключу из
+`C:\Users\...\.ssh\config`; в WSL создаётся защищённая копия ключа с правами
+`0600` и отдельная запись в `~/.ssh/config`. Пути хранятся только в локальном
+игнорируемом inventory overlay.
+
+## Работа с репозиторием
+
+Основной записываемый remote — Gitea. Git-over-SSH опубликован через входной
+NGINX HoRus на TCP-порту `2222`:
+
+```text
+ssh://git@git.horus.admin:2222/Benden-SysLab/HoRus-Basis.git
+```
+
+Рекомендуемая схема локальных remote:
+
+```text
+origin  -> Gitea (ежедневные fetch, pull и push)
+github  -> GitHub (внешняя витрина и резервная копия)
+```
+
+Обычная работа выполняется командами `git pull` и `git push` через Gitea.
+Публикация на GitHub пока запускается явно командой `git push github main`, до
+настройки и проверки push mirror Gitea с секретом из Vault. Репозиторий Gitea
+нельзя оставлять pull mirror: такой режим read-only и не подходит для основного
+рабочего remote.
+
 ## Запуск этапа
 
 ```bash
@@ -149,4 +177,6 @@ Proxmox — их жизненным циклом управляет
 только через подготовленный apply/commit workflow с резервной копией и
 отложенным автоматическим откатом.
 
-Репозиторий: [Benden-SysLab/HoRus-Basis](https://github.com/Benden-SysLab/HoRus-Basis).
+Основной репозиторий: `ssh://git@git.horus.admin:2222/Benden-SysLab/HoRus-Basis.git`.
+
+Внешняя витрина: [GitHub/Benden-SysLab/HoRus-Basis](https://github.com/Benden-SysLab/HoRus-Basis).

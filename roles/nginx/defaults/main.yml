@@ -1,9 +1,11 @@
 ---
 
 nginx_package_name: nginx
+nginx_stream_package_name: libnginx-mod-stream
 nginx_service_name: nginx
 nginx_config_path: /etc/nginx/nginx.conf
 nginx_conf_d_path: /etc/nginx/conf.d
+nginx_stream_conf_d_path: /etc/nginx/stream.d
 nginx_snippets_path: /etc/nginx/snippets
 nginx_listen_address: 0.0.0.0
 nginx_listen_port: 443

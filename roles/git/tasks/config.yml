@@ -1,4 +1,48 @@
 ---
+- name: Check for managed SSH allowlist
+  ansible.builtin.stat:
+    path: "{{ gitea_ssh_allowlist_path }}"
+  register: gitea_ssh_allowlist
+
+- name: Require managed SSH allowlist
+  ansible.builtin.assert:
+    that: gitea_ssh_allowlist.stat.isreg | default(false)
+    fail_msg: >-
+      Managed SSH allowlist {{ gitea_ssh_allowlist_path }} was not found;
+      refusing to modify an unknown SSH policy.
+
+- name: Permit Gitea system account in managed SSH allowlist
+  ansible.builtin.replace:
+    path: "{{ gitea_ssh_allowlist_path }}"
+    regexp: '^(AllowUsers(?![^\n]*[ \t]{{ gitea_system_user | regex_escape }}(?:[ \t]|$))[^\n]*)$'
+    replace: '\1 {{ gitea_system_user }}'
+  register: gitea_ssh_allowlist_update
+  notify: Restart Gitea SSH
+
+- name: Read managed SSH allowlist after Gitea update
+  ansible.builtin.slurp:
+    src: "{{ gitea_ssh_allowlist_path }}"
+  register: gitea_ssh_allowlist_content
+
+- name: Require Gitea account in managed SSH allowlist
+  ansible.builtin.assert:
+    that:
+      - >-
+        gitea_system_user in
+        ((gitea_ssh_allowlist_content.content | b64decode)
+         | regex_findall('(?m)^AllowUsers[ \\t]+([^\\n]+)$')
+         | join(' ')
+         | split)
+    fail_msg: Gitea system account is absent from the managed SSH AllowUsers policy.
+
+- name: Validate SSH configuration after Gitea allowlist update
+  ansible.builtin.command:
+    argv: [/usr/sbin/sshd, -t]
+  changed_when: false
+
+- name: Apply pending Gitea SSH handler
+  ansible.builtin.meta: flush_handlers
+
 - name: Install Gitea configuration
   ansible.builtin.template:
     src: app.ini.j2

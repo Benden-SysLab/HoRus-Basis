@@ -1,4 +1,33 @@
 ---
+- name: Install NGINX stream support for Gitea SSH
+  ansible.builtin.apt:
+    name: "{{ gitea_nginx_stream_package_name }}"
+    state: present
+    update_cache: true
+  delegate_to: "{{ gitea_nginx_host }}"
+  register: gitea_nginx_stream_package
+
+- name: Load Debian NGINX dynamic modules
+  ansible.builtin.lineinfile:
+    path: "{{ gitea_nginx_config_path }}"
+    line: include /etc/nginx/modules-enabled/*.conf;
+    insertbefore: BOF
+    state: present
+  delegate_to: "{{ gitea_nginx_host }}"
+  register: gitea_nginx_module_loader
+
+- name: Enable NGINX stream configuration scope
+  ansible.builtin.blockinfile:
+    path: "{{ gitea_nginx_config_path }}"
+    marker: "# {mark} ANSIBLE MANAGED NGINX STREAM"
+    block: |
+      stream {
+          include {{ gitea_nginx_stream_conf_dir }}/*.conf;
+      }
+    insertafter: EOF
+  delegate_to: "{{ gitea_nginx_host }}"
+  register: gitea_nginx_stream_scope
+
 - name: Install Gitea NGINX service block
   ansible.builtin.template:
     src: nginx/50_gitea.conf.j2
@@ -8,6 +37,25 @@
     mode: "0644"
   delegate_to: "{{ gitea_nginx_host }}"
   register: gitea_nginx_block
+
+- name: Create Gitea NGINX stream directory
+  ansible.builtin.file:
+    path: "{{ gitea_nginx_stream_conf_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  delegate_to: "{{ gitea_nginx_host }}"
+
+- name: Install Gitea NGINX SSH stream block
+  ansible.builtin.template:
+    src: nginx/50_gitea_ssh.conf.j2
+    dest: "{{ gitea_nginx_stream_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  delegate_to: "{{ gitea_nginx_host }}"
+  register: gitea_nginx_ssh_block
 
 - name: Install Gitea dashboard manifest
   ansible.builtin.template:
@@ -28,7 +76,12 @@
     name: nginx
     state: reloaded
   delegate_to: "{{ gitea_nginx_host }}"
-  when: gitea_nginx_block.changed
+  when: >-
+    gitea_nginx_stream_package.changed or
+    gitea_nginx_module_loader.changed or
+    gitea_nginx_stream_scope.changed or
+    gitea_nginx_block.changed or
+    gitea_nginx_ssh_block.changed
 
 - name: Check Gitea through NGINX
   ansible.builtin.uri:

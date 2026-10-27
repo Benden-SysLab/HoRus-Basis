@@ -12,6 +12,7 @@ all:
     keepass_access_postgres_entry: CHANGE_ME_KEEPASS_ENTRY
     keepass_access_bootstrap_entry: CHANGE_ME_KEEPASS_ENTRY
     keepass_access_personal_entry: CHANGE_ME_KEEPASS_ENTRY
+    keepass_vault_oidc_entry: CHANGE_ME_KEEPASS_ENTRY
     keepass_gitea_postgres_entry: CHANGE_ME_KEEPASS_ENTRY
     keepass_gitea_bootstrap_entry: CHANGE_ME_KEEPASS_ENTRY
     keepass_gitea_oidc_entry: CHANGE_ME_KEEPASS_ENTRY
@@ -54,8 +55,18 @@ all:
     vault_keepass_initialization_group: CHANGE_ME_KEEPASS_ENTRY
     vault_tls_common_name: CHANGE_ME_TLS_COMMON_NAME
     vault_tls_subject_alt_name: CHANGE_ME_TLS_SUBJECT_ALT_NAME
+    vault_oidc_client_id: CHANGE_ME_OIDC_CLIENT_ID
+    vault_oidc_role_name: CHANGE_ME_VAULT_OIDC_ROLE
+    vault_oidc_admin_policy_name: CHANGE_ME_VAULT_POLICY
     gitea_public_url: CHANGE_ME_GITEA_URL
     gitea_public_hostname: CHANGE_ME_GITEA_HOSTNAME
+    gitea_ssh_public_port: 2222
+    gitea_ssh_backend_port: 22
+    gitea_controller_windows_private_key_source: CHANGE_ME_WSL_PATH_TO_WINDOWS_PRIVATE_KEY
+    gitea_controller_windows_identity_file: CHANGE_ME_WINDOWS_PRIVATE_KEY_PATH
+    gitea_controller_windows_ssh_config_path: CHANGE_ME_WSL_PATH_TO_WINDOWS_SSH_CONFIG
+    gitea_controller_wsl_private_key_path: CHANGE_ME_WSL_PRIVATE_KEY_PATH
+    gitea_controller_wsl_ssh_config_path: CHANGE_ME_WSL_SSH_CONFIG_PATH
     gitea_postgres_host: CHANGE_ME_DATABASE_ADDRESS
     gitea_postgres_database: CHANGE_ME_DATABASE_NAME
     gitea_postgres_user: CHANGE_ME_DATABASE_USER

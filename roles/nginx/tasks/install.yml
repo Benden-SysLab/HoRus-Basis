@@ -4,8 +4,9 @@
   ansible.builtin.apt:
     name:
       - "{{ nginx_package_name }}"
+      - "{{ nginx_stream_package_name }}"
       - openssl
     state: present
-    update_cache: false
+    update_cache: true
 
 

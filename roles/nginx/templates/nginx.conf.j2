@@ -1,3 +1,5 @@
+include /etc/nginx/modules-enabled/*.conf;
+
 user www-data;
 worker_processes {{ nginx_worker_processes }};
 pid /run/nginx.pid;
@@ -26,4 +28,10 @@ http {
 
     include {{ nginx_conf_d_path }}/*.conf;
 }
+
+# BEGIN ANSIBLE MANAGED NGINX STREAM
+stream {
+    include {{ nginx_stream_conf_d_path }}/*.conf;
+}
+# END ANSIBLE MANAGED NGINX STREAM
 

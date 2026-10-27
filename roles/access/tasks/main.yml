@@ -65,5 +65,8 @@
     technitium_dns_record_address: "{{ horus_portal_dns_address }}"
 - name: Publish Access through NGINX
   ansible.builtin.include_tasks: publish.yml
+- name: Configure Vault sign-in through Access
+  ansible.builtin.include_tasks: vault_oidc.yml
+  when: vault_oidc_enabled | bool
 - name: Validate Access
   ansible.builtin.include_tasks: test.yml

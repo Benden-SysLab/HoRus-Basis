@@ -11,6 +11,13 @@
       - gitea_secret_key | length > 0
       - gitea_lfs_jwt_secret | length > 0
       - gitea_oauth2_jwt_secret | length > 0
+      - gitea_public_hostname | length > 0
+      - gitea_nginx_upstream_address | length > 0
+      - gitea_ssh_public_port | int > 0
+      - gitea_ssh_public_port | int < 65536
+      - gitea_ssh_backend_port | int > 0
+      - gitea_ssh_backend_port | int < 65536
+      - gitea_ssh_public_port | int != 22
     fail_msg: Required Gitea credentials are missing from KeePass.
   no_log: true
 

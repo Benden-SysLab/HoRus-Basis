@@ -26,6 +26,23 @@ access_personal_admin_role: realm-admin
 access_personal_kcadm_config: /tmp/horus-personal-user-kcadm.config
 access_admin_console_url: "{{ access_public_url }}/admin/{{ access_realm }}/console/"
 
+vault_oidc_enabled: true
+vault_oidc_host: horus-vlt-srv01
+vault_oidc_client_id: vault
+vault_oidc_client_secret: ""
+vault_oidc_role_name: abbenden-admin
+vault_oidc_admin_policy_name: horus-admin
+vault_oidc_auth_path: oidc
+vault_oidc_discovery_url: "{{ access_public_url }}/realms/{{ access_realm }}"
+vault_oidc_ui_callback: "{{ vault_public_url }}ui/vault/auth/{{ vault_oidc_auth_path }}/oidc/callback"
+vault_oidc_cli_callback: http://localhost:8250/oidc/callback
+vault_oidc_kcadm_config: /tmp/horus-vault-oidc-kcadm.config
+vault_oidc_ca_path: /usr/local/share/ca-certificates/horus-admin.crt
+vault_oidc_vault_addr: https://127.0.0.1:8200
+vault_oidc_vault_cacert: /etc/vault.d/tls/vault.crt
+vault_oidc_admin_policy_path: /tmp/horus-vault-admin-policy.hcl
+vault_root_token: ""
+
 access_postgres_host: ""
 access_postgres_port: 5432
 access_postgres_database: ""

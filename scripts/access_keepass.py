@@ -18,9 +18,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--postgres-entry", required=True)
     parser.add_argument("--bootstrap-entry", required=True)
     parser.add_argument("--personal-entry", required=True)
+    parser.add_argument("--vault-oidc-entry", required=True)
     parser.add_argument("--postgres-user", required=True)
     parser.add_argument("--bootstrap-user", required=True)
     parser.add_argument("--personal-user", required=True)
+    parser.add_argument("--vault-oidc-client-id", required=True)
     return parser.parse_args()
 
 
@@ -90,6 +92,9 @@ def main() -> int:
         changed = ensure_entry(database, args.postgres_entry, args.postgres_user)
         changed |= ensure_entry(database, args.bootstrap_entry, args.bootstrap_user)
         changed |= ensure_entry(database, args.personal_entry, args.personal_user)
+        changed |= ensure_entry(
+            database, args.vault_oidc_entry, args.vault_oidc_client_id
+        )
         if changed:
             database.save()
         print(f"Access KeePass credentials are ready; created={str(changed).lower()}")
@@ -97,6 +102,7 @@ def main() -> int:
         verify_entry(database, args.postgres_entry, args.postgres_user)
         verify_entry(database, args.bootstrap_entry, args.bootstrap_user)
         verify_entry(database, args.personal_entry, args.personal_user)
+        verify_entry(database, args.vault_oidc_entry, args.vault_oidc_client_id)
         print("Access KeePass credentials are present")
     return 0
 

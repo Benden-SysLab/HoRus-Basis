@@ -11,6 +11,10 @@ gitea_config_path: /etc/gitea/app.ini
 gitea_data_dir: /var/lib/gitea
 gitea_log_dir: /var/log/gitea
 gitea_http_port: 3000
+gitea_ssh_public_port: 2222
+gitea_ssh_backend_port: 22
+gitea_ssh_allowlist_path: /etc/ssh/sshd_config.d/20-horus-security.conf
+gitea_ssh_service_name: ssh
 gitea_public_hostname: ""
 gitea_public_url: ""
 
@@ -41,7 +45,11 @@ gitea_keycloak_url: http://127.0.0.1:8080
 
 gitea_nginx_host: horus-lb-srv01
 gitea_nginx_upstream_address: ""
+gitea_nginx_stream_package_name: libnginx-mod-stream
+gitea_nginx_config_path: /etc/nginx/nginx.conf
 gitea_nginx_conf_path: /etc/nginx/conf.d/50_gitea.conf
+gitea_nginx_stream_conf_dir: /etc/nginx/stream.d
+gitea_nginx_stream_conf_path: /etc/nginx/stream.d/50_gitea_ssh.conf
 gitea_nginx_manifest_path: /var/www/horus/services/gitea.json
 gitea_nginx_tls_certificate: /etc/nginx/tls/horus-admin.crt
 gitea_nginx_tls_key: /etc/nginx/tls/horus-admin.key

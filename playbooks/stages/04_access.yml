@@ -34,6 +34,11 @@
                 database=keepass_database_path,
                 master_password=keepass_master_password,
                 field='password') }}
+    vault_oidc_client_secret: >-
+      {{ lookup('keepass2', keepass_vault_oidc_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='password') }}
     technitium_api_token: >-
       {{ lookup('keepass2', keepass_technitium_token_entry,
                 database=keepass_database_path,
@@ -108,12 +113,16 @@
           - "{{ keepass_access_bootstrap_entry }}"
           - --personal-entry
           - "{{ keepass_access_personal_entry }}"
+          - --vault-oidc-entry
+          - "{{ keepass_vault_oidc_entry }}"
           - --postgres-user
           - "{{ access_postgres_user }}"
           - --bootstrap-user
           - "{{ access_admin_user }}"
           - --personal-user
           - "{{ access_personal_user }}"
+          - --vault-oidc-client-id
+          - "{{ vault_oidc_client_id }}"
       environment:
         HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
       delegate_to: localhost
@@ -137,5 +146,106 @@
       vars:
         ansible_become: false
       run_once: true
+
+    - name: Read Vault bootstrap material for OIDC configuration
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ inventory_dir }}/../scripts/vault_keepass.py"
+          - read
+          - --database
+          - "{{ keepass_database_path }}"
+          - --group
+          - "{{ vault_keepass_initialization_group }}"
+      environment:
+        HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: access_vault_bootstrap
+      changed_when: false
+      no_log: true
+
+    - name: Keep Vault root token in play memory
+      ansible.builtin.set_fact:
+        vault_root_token: >-
+          {{ (access_vault_bootstrap.stdout | from_json).root_token }}
+      no_log: true
+
+    - name: Check gateway private key source on controller
+      ansible.builtin.stat:
+        path: "{{ hostvars['horus-gw-node01'].gateway_private_key_source }}"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      register: access_gateway_key_source
+
+    - name: Require gateway private key source on controller
+      ansible.builtin.assert:
+        that: access_gateway_key_source.stat.isreg | default(false)
+        fail_msg: >-
+          Gateway SSH key was not found at
+          {{ hostvars['horus-gw-node01'].gateway_private_key_source }}.
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Create controller gateway SSH key directory
+      ansible.builtin.file:
+        path: "{{ hostvars['horus-gw-node01'].ansible_private_key_file | dirname }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+
+    - name: Stage gateway private key with safe WSL permissions
+      ansible.builtin.copy:
+        src: "{{ hostvars['horus-gw-node01'].gateway_private_key_source }}"
+        dest: "{{ hostvars['horus-gw-node01'].ansible_private_key_file }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      vars:
+        ansible_become: false
+      run_once: true
+      no_log: true
+
+    - name: Install Access gateway policy scripts
+      ansible.builtin.copy:
+        src: "{{ inventory_dir }}/../scripts/{{ item }}"
+        dest: "/tmp/{{ item }}"
+        owner: root
+        group: root
+        mode: "0700"
+      loop:
+        - apply_access_gateway_access.sh
+        - commit_access_gateway_access.sh
+      delegate_to: horus-gw-node01
+      run_once: true
+
+    - name: Apply rollback-protected Access gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/apply_access_gateway_access.sh]
+      delegate_to: horus-gw-node01
+      run_once: true
+      register: access_gateway_policy
+      changed_when: "'APPLY_OK' in access_gateway_policy.stdout"
   roles:
     - access
+
+  post_tasks:
+    - name: Commit verified Access gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/commit_access_gateway_access.sh]
+      delegate_to: horus-gw-node01
+      run_once: true
+      changed_when: access_gateway_policy.changed

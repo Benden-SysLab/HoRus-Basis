@@ -37,8 +37,8 @@ NGINX foundation
 | 01 | `01_nginx.yml` | `horus-lb-srv01` | NGINX, central portal and Technitium DNS publication |
 | 02 | `02_psql.yml` | `horus-db-srv03` | PostgreSQL, exporter and database logging |
 | 03 | `03_vault.yml` | `horus-vlt-srv01` | Vault with PostgreSQL storage and NGINX publication |
-| 04 | `04_access.yml` | `horus-iam-srv01` | Keycloak access management and personal admin account |
-| 05 | `05_gitea.yml` | `horus-git-srv01` | Gitea with PostgreSQL and OIDC |
+| 04 | `04_access.yml` | `horus-iam-srv01` | Keycloak access management, personal admin account and Vault OIDC |
+| 05 | `05_gitea.yml` | `horus-git-srv01` | Gitea with PostgreSQL, OIDC and Git-over-SSH through NGINX |
 | 06 | `06_wiki.yml` | `horus-wiki-srv01` | Wiki.js with PostgreSQL and OIDC |
 | 07 | `07_vikunja.yml` | `horus-vkj-srv01` | Vikunja tasks and planning with PostgreSQL and OIDC |
 | 08 | `08_registry.yml` | `horus-reg-srv01` | Zot OCI registry with OIDC |
@@ -99,6 +99,33 @@ Inventory and common non-secret defaults live under `inventory/`. SSH private
 keys remain outside the repository. Verify host fingerprints before accepting
 new or changed host keys.
 
+Stage 05 maintains the `git.horus.admin` OpenSSH client entry in both controller
+environments. Windows Git and VS Code use the native key path from
+`C:\Users\...\.ssh\config`; WSL receives a protected key copy with mode `0600`
+and uses its own `~/.ssh/config`. The paths are stored only in the ignored
+private inventory overlay.
+
+## Repository workflow
+
+Gitea is the primary writable remote. Git-over-SSH is published through the
+HoRus NGINX entry point on TCP port `2222`:
+
+```text
+ssh://git@git.horus.admin:2222/Benden-SysLab/HoRus-Basis.git
+```
+
+The recommended local remotes are:
+
+```text
+origin  -> Gitea (daily fetch, pull and push)
+github  -> GitHub (external showcase and backup)
+```
+
+Normal work uses `git pull` and `git push` against Gitea. GitHub publication is
+explicit with `git push github main` until a Vault-backed Gitea push mirror is
+enabled and verified. Do not create the Gitea repository as a pull mirror: pull
+mirrors are read-only and cannot serve as the primary development remote.
+
 ## Running a stage
 
 ```bash
@@ -153,4 +180,6 @@ infrastructure lifecycle belongs to
 inventory targets and `--limit` before every run. Gateway changes must use the
 provided apply/commit workflow with backup and timed rollback.
 
-Repository: [Benden-SysLab/HoRus-Basis](https://github.com/Benden-SysLab/HoRus-Basis).
+Primary repository: `ssh://git@git.horus.admin:2222/Benden-SysLab/HoRus-Basis.git`.
+
+External showcase: [GitHub/Benden-SysLab/HoRus-Basis](https://github.com/Benden-SysLab/HoRus-Basis).

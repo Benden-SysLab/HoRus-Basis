@@ -22,3 +22,12 @@
     status_code: 200
   delegate_to: "{{ gitea_nginx_host }}"
 
+- name: Check Gitea SSH banner through NGINX stream
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ gitea_ssh_public_port }}"
+    search_regex: ^SSH-
+    connect_timeout: 5
+    timeout: 15
+  delegate_to: "{{ gitea_nginx_host }}"
+
