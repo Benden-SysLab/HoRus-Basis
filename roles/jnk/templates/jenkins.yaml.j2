@@ -18,7 +18,7 @@ jenkins:
             host: "{{ jenkins_agent_address }}"
             port: 22
             credentialsId: "{{ jenkins_agent_credentials_id }}"
-            javaPath: /usr/bin/java
+            javaPath: "{{ jenkins_agent_java_command }}"
             maxNumRetries: 5
             retryWaitTime: 15
             sshHostKeyVerificationStrategy:

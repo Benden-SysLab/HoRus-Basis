@@ -1,6 +1,9 @@
 ---
-jenkins_version: 2.580.1
-jenkins_java_package: openjdk-21-jre-headless
+jenkins_version: 2.580.2
+jenkins_java_major_version: 25
+jenkins_java_package: openjdk-25-jre-headless
+jenkins_java_command: /usr/lib/jvm/java-25-openjdk-amd64/bin/java
+jenkins_agent_java_command: /usr/lib/jvm/java-25-openjdk-amd64/bin/java
 jenkins_http_port: 8080
 jenkins_home: /var/lib/jenkins
 jenkins_config_dir: /etc/jenkins

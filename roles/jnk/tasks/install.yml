@@ -9,6 +9,48 @@
     state: present
     update_cache: true
 
+- name: Require configured Jenkins Java runtime
+  ansible.builtin.stat:
+    path: "{{ jenkins_java_command }}"
+  register: jenkins_java_runtime
+
+- name: Validate configured Jenkins Java runtime
+  ansible.builtin.assert:
+    that: jenkins_java_runtime.stat.isreg | default(false)
+    fail_msg: >-
+      Jenkins Java {{ jenkins_java_major_version }} runtime is missing at
+      {{ jenkins_java_command }} after installing {{ jenkins_java_package }}.
+
+- name: Read system Java alternative
+  ansible.builtin.command: readlink -f /usr/bin/java
+  register: jenkins_system_java
+  changed_when: false
+
+- name: Select Java runtime for Jenkins tooling
+  ansible.builtin.command:
+    argv:
+      - update-alternatives
+      - --set
+      - java
+      - "{{ jenkins_java_command }}"
+  when: jenkins_system_java.stdout | trim != jenkins_java_command
+  notify: Restart Jenkins
+
+- name: Read installed Jenkins Java version
+  ansible.builtin.command: "{{ jenkins_java_command }} -version"
+  register: jenkins_java_version
+  changed_when: false
+
+- name: Require supported Java version for Jenkins
+  ansible.builtin.assert:
+    that:
+      - >-
+        jenkins_java_version.stderr is
+        search('version "' ~ jenkins_java_major_version ~ '[.]')
+    fail_msg: >-
+      Jenkins requires Java {{ jenkins_java_major_version }}, but the selected
+      runtime reported: {{ jenkins_java_version.stderr | trim }}
+
 - name: Create APT keyring directory
   ansible.builtin.file:
     path: /etc/apt/keyrings

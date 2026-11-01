@@ -7,11 +7,13 @@ validates configuration before replacement, and then invokes the shared SRE
 tools and Fluent Bit roles from `tasks/main.yml`. Application upstreams are
 intentionally not defined here yet.
 
-The Stage 01 dashboard is grouped into three sections with three cards per row:
+The Stage 01 dashboard is grouped into four ordered sections:
 
 - `NET`: gateway Web Admin, v2rayA, Technitium DNS and the two managed HoRus
   switches;
 - `Infra`: the four internal Proxmox web consoles;
+- `Observability`: monitoring and telemetry manifests published by the
+  HoRus-Observability repository, with optional nested subcategories;
 - `Service`: application manifests published by their own installation stages.
 
 Only internal HoRus resources are included. Public NL addresses and unrelated

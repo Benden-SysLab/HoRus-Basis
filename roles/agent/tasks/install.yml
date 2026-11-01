@@ -13,6 +13,33 @@
     state: present
     update_cache: true
 
+- name: Require configured Jenkins agent Java runtime
+  ansible.builtin.stat:
+    path: "{{ jenkins_agent_java_command }}"
+  register: jenkins_agent_java_runtime
+
+- name: Validate configured Jenkins agent Java runtime
+  ansible.builtin.assert:
+    that: jenkins_agent_java_runtime.stat.isreg | default(false)
+    fail_msg: >-
+      Jenkins agent Java {{ jenkins_agent_java_major_version }} runtime is
+      missing at {{ jenkins_agent_java_command }} after installing
+      {{ jenkins_agent_java_package }}.
+
+- name: Read Jenkins agent system Java alternative
+  ansible.builtin.command: readlink -f /usr/bin/java
+  register: jenkins_agent_system_java
+  changed_when: false
+
+- name: Select Java runtime for Jenkins agent
+  ansible.builtin.command:
+    argv:
+      - update-alternatives
+      - --set
+      - java
+      - "{{ jenkins_agent_java_command }}"
+  when: jenkins_agent_system_java.stdout | trim != jenkins_agent_java_command
+
 - name: Create Jenkins agent system group
   ansible.builtin.group:
     name: "{{ jenkins_agent_group }}"

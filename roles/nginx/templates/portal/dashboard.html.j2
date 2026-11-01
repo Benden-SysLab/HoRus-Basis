@@ -69,7 +69,8 @@
       'Wiki.js': '/icons/wikijs.svg',
       'Vikunja': '/icons/vikunja.svg',
       'Registry': '/icons/registry.svg',
-      'Jenkins': '/icons/jenkins.svg'
+      'Jenkins': '/icons/jenkins.svg',
+      'Grafana': '/icons/observability.svg'
     };
     const assetUrl = path => `${path || '/favicon.svg'}${String(path || '').includes('?') ? '&' : '?'}v={{ nginx_portal_asset_version }}`;
     const tile = service => `<a class="tile" style="--service-color:${escapeHtml(service.color || '#00b7ff')}" href="${escapeHtml(service.url)}" title="${escapeHtml(service.description || service.name)}"><img class="tile-icon" src="${escapeHtml(assetUrl(service.icon || serviceIcons[service.name]))}" alt="${escapeHtml(service.name)}" loading="lazy"><span class="tile-name">${escapeHtml(service.label || service.name)}</span></a>`;
@@ -88,7 +89,7 @@
         const listing = await fetch('/portal-services/', {cache:'no-store'}).then(response => response.json());
         const files = listing.filter(item => item.type === 'file' && item.name.endsWith('.json'));
         const services = await Promise.all(files.map(item => fetch('/portal-services/' + encodeURIComponent(item.name), {cache:'no-store'}).then(response => response.json())));
-        const categories = ['NET', 'Infra', 'Service'];
+        const categories = ['NET', 'Infra', 'Observability', 'Service'];
         const grouped = services.reduce((result, service) => { const category = service.category || 'Service'; (result[category] ||= []).push(service); return result; }, {});
         root.innerHTML = categories.filter(category => grouped[category]?.length).map(category => renderCategory(category, grouped[category])).join('');
         if (!services.length) root.innerHTML = '<div class="empty">Сервисы будут появляться здесь по мере установки этапов.</div>';

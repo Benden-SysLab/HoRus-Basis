@@ -19,7 +19,7 @@ nginx_tls_certificate: /etc/nginx/tls/horus-admin.crt
 nginx_tls_key: /etc/nginx/tls/horus-admin.key
 nginx_tls_common_name: ""
 nginx_tls_subject_alt_name: ""
-nginx_portal_asset_version: "20261027-2"
+nginx_portal_asset_version: "20261029-1"
 nginx_portal_required_icons:
   - cockpit.svg
   - v2raya.svg
@@ -33,6 +33,7 @@ nginx_portal_required_icons:
   - vikunja.svg
   - registry.svg
   - jenkins.svg
+  - observability.svg
 
 # Service manifests left by applications that have been retired from HoRus.
 # The dashboard discovers every JSON file in this directory automatically.

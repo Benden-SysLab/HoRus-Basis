@@ -17,6 +17,16 @@
     group: root
     mode: "0755"
 
+- name: Check Fluent Bit repository signing key
+  ansible.builtin.stat:
+    path: /etc/apt/keyrings/fluentbit.asc
+  register: fluent_bit_repository_key
+
+- name: Check Fluent Bit repository keyring
+  ansible.builtin.stat:
+    path: "{{ fluent_bit_keyring_path }}"
+  register: fluent_bit_repository_keyring
+
 - name: Download Fluent Bit repository signing key
   ansible.builtin.get_url:
     url: "{{ fluent_bit_repository_key_url }}"
@@ -24,11 +34,16 @@
     owner: root
     group: root
     mode: "0644"
+    timeout: 30
+  when:
+    - not fluent_bit_repository_key.stat.exists
+    - not fluent_bit_repository_keyring.stat.exists
 
 - name: Convert Fluent Bit signing key to keyring format
   ansible.builtin.command:
     cmd: "gpg --dearmor --yes --output {{ fluent_bit_keyring_path }} /etc/apt/keyrings/fluentbit.asc"
     creates: "{{ fluent_bit_keyring_path }}"
+  when: not fluent_bit_repository_keyring.stat.exists
 
 - name: Configure Fluent Bit APT repository
   ansible.builtin.apt_repository:

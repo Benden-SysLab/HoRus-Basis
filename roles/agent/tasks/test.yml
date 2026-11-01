@@ -1,12 +1,15 @@
 ---
 - name: Read Jenkins agent Java version
-  ansible.builtin.command: java -version
+  ansible.builtin.command: "{{ jenkins_agent_java_command }} -version"
   register: jenkins_agent_java
   changed_when: false
 
-- name: Require Java 21 on Jenkins agent
+- name: Require Java 25 on Jenkins agent
   ansible.builtin.assert:
-    that: "'21.' in jenkins_agent_java.stderr"
+    that:
+      - >-
+        jenkins_agent_java.stderr is
+        search('version "' ~ jenkins_agent_java_major_version ~ '[.]')
 
 - name: Validate Jenkins agent connection
   block:
