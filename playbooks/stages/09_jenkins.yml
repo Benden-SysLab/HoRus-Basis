@@ -35,6 +35,14 @@
         fail_msg: >-
           No ED25519 SSH host key was returned by {{ jenkins_target_address }}.
 
+    - name: Select scanned Jenkins ED25519 host key
+      ansible.builtin.set_fact:
+        jenkins_scanned_key_line: >-
+          {{ jenkins_scanned_host_key.stdout_lines
+             | reject('match', '^#')
+             | select('match', '^\S+\s+ssh-ed25519\s+\S+')
+             | first }}
+
     - name: Calculate Jenkins host key fingerprint
       ansible.builtin.command:
         argv:
@@ -57,21 +65,49 @@
           Expected {{ jenkins_expected_fingerprint }}, received
           {{ jenkins_scanned_fingerprint.stdout | trim }}.
 
+    - name: Read trusted Jenkins host key entries
+      ansible.builtin.command:
+        argv:
+          - ssh-keygen
+          - -F
+          - "{{ jenkins_target_address }}"
+          - -f
+          - "{{ jenkins_known_hosts_path }}"
+      register: jenkins_trusted_host_keys
+      changed_when: false
+      failed_when: jenkins_trusted_host_keys.rc not in [0, 1]
+
+    - name: Select Jenkins host key trust state
+      ansible.builtin.set_fact:
+        jenkins_host_key_is_trusted: >-
+          {{ (jenkins_scanned_key_line.split()[1:3] | join(' '))
+             in jenkins_trusted_host_keys.stdout }}
+
+    - name: Remove stale Jenkins address key entries
+      ansible.builtin.known_hosts:
+        path: "{{ jenkins_known_hosts_path }}"
+        name: "{{ jenkins_target_address }}"
+        state: absent
+      when:
+        - jenkins_trusted_host_keys.rc == 0
+        - not (jenkins_host_key_is_trusted | bool)
+
     - name: Remove stale Jenkins host key entries
       ansible.builtin.known_hosts:
         path: "{{ jenkins_known_hosts_path }}"
         name: "{{ item }}"
         state: absent
       loop:
-        - "{{ jenkins_target_address }}"
         - "{{ jenkins_inventory_host }}"
+      when: jenkins_inventory_host != jenkins_target_address
 
     - name: Install verified Jenkins host key
       ansible.builtin.known_hosts:
         path: "{{ jenkins_known_hosts_path }}"
         name: "{{ jenkins_target_address }}"
-        key: "{{ jenkins_scanned_host_key.stdout }}"
+        key: "{{ jenkins_scanned_key_line }}"
         state: present
+      when: not (jenkins_host_key_is_trusted | bool)
 
 - name: Install Jenkins controller
   hosts: jenkins
@@ -88,6 +124,13 @@
                 database=keepass_database_path,
                 master_password=keepass_master_password,
                 field='password') }}
+    jenkins_agent_key_data: >-
+      {{ lookup('keepass2', keepass_jenkins_agent_ssh_entry,
+                database=keepass_database_path,
+                master_password=keepass_master_password,
+                field='notes') | from_json }}
+    jenkins_agent_enabled: true
+    jenkins_agent_ssh_private_key: "{{ jenkins_agent_key_data.private_key }}"
     access_admin_user: >-
       {{ lookup('keepass2', keepass_access_bootstrap_entry,
                 database=keepass_database_path,
@@ -104,6 +147,66 @@
                 master_password=keepass_master_password,
                 field='password') }}
   pre_tasks:
+    - name: Read Jenkins agent ED25519 host key
+      ansible.builtin.slurp:
+        src: /etc/ssh/ssh_host_ed25519_key.pub
+      delegate_to: horus-agent-srv01
+      register: jenkins_agent_host_key_file
+
+    - name: Select Jenkins agent ED25519 host key
+      ansible.builtin.set_fact:
+        jenkins_agent_ssh_host_key: >-
+          {{ ((jenkins_agent_host_key_file.content | b64decode).split()[0:2]) | join(' ') }}
+
+    - name: Check Jenkins agent KeePass helper
+      ansible.builtin.stat:
+        path: "{{ inventory_dir }}/../scripts/jenkins_agent_keepass.py"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+      register: jenkins_agent_keepass_helper
+
+    - name: Require Jenkins agent KeePass helper
+      ansible.builtin.assert:
+        that: jenkins_agent_keepass_helper.stat.isreg | default(false)
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+
+    - name: Ensure Jenkins agent SSH key exists in KeePass
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_playbook_python }}"
+          - "{{ inventory_dir }}/../scripts/jenkins_agent_keepass.py"
+          - ensure
+          - --database
+          - "{{ keepass_database_path }}"
+          - --entry
+          - "{{ keepass_jenkins_agent_ssh_entry }}"
+      environment:
+        HORUS_KEEPASS_MASTER_PASSWORD: "{{ keepass_master_password }}"
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+      register: jenkins_agent_keepass_ensure
+      failed_when: false
+      changed_when: "'created=true' in jenkins_agent_keepass_ensure.stdout"
+      no_log: true
+
+    - name: Report Jenkins agent KeePass helper failure
+      ansible.builtin.fail:
+        msg: >-
+          Jenkins agent KeePass preparation failed:
+          {{ jenkins_agent_keepass_ensure.stderr | default('helper returned no details') | trim }}
+      when: jenkins_agent_keepass_ensure.rc | default(1) != 0
+      delegate_to: localhost
+      become: false
+      vars: {ansible_become: false}
+      run_once: true
+
     - name: Check Jenkins KeePass helper
       ansible.builtin.stat:
         path: "{{ inventory_dir }}/../scripts/jenkins_keepass.py"

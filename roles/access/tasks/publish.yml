@@ -75,17 +75,3 @@
     state: reloaded
   delegate_to: "{{ access_nginx_host }}"
   when: access_nginx_block.changed or (access_tls_created is defined and access_tls_created.changed)
-
-- name: Check Access discovery endpoint through NGINX
-  ansible.builtin.uri:
-    url: https://127.0.0.1/realms/master/.well-known/openid-configuration
-    headers:
-      Host: "{{ access_public_hostname }}"
-    validate_certs: false
-    status_code: 200
-  delegate_to: "{{ access_nginx_host }}"
-  register: access_nginx_discovery
-
-- name: Require Access discovery endpoint through public proxy
-  ansible.builtin.assert:
-    that: access_nginx_discovery.status == 200

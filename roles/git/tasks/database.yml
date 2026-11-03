@@ -3,8 +3,11 @@
   ansible.builtin.lineinfile:
     path: "{{ gitea_postgres_config_path }}"
     line: >-
-      host    {{ gitea_postgres_database }}    {{ gitea_postgres_user }}
-      {{ hostvars['horus-git-srv01'].ansible_host }}/32    scram-sha-256
+      {{
+        ['host', gitea_postgres_database, gitea_postgres_user,
+         hostvars['horus-git-srv01'].ansible_host ~ '/32', 'scram-sha-256']
+        | join('    ')
+      }}
     insertafter: EOF
     state: present
   delegate_to: horus-db-srv03

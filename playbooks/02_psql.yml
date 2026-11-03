@@ -1,6 +1,6 @@
 ---
-- name: Install PostgreSQL baseline
-  hosts: databases
-  become: true
-  roles:
-    - psql
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Stage 02 - PostgreSQL foundation
+  ansible.builtin.import_playbook: stages/02_psql.yml

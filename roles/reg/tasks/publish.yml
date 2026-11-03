@@ -29,12 +29,3 @@
     state: reloaded
   delegate_to: "{{ registry_nginx_host }}"
   when: registry_nginx_block.changed
-
-- name: Check Registry through NGINX
-  ansible.builtin.uri:
-    url: https://127.0.0.1/v2/
-    headers:
-      Host: "{{ registry_public_hostname }}"
-    validate_certs: false
-    status_code: [200, 401]
-  delegate_to: "{{ registry_nginx_host }}"

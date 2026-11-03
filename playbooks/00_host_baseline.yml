@@ -1,0 +1,6 @@
+---
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Stage 00 - Shared host baseline
+  ansible.builtin.import_playbook: stages/00_host_baseline.yml

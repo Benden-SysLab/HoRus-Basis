@@ -15,7 +15,7 @@
 [INPUT]
     Name              tail
     Path              {{ fluent_bit_selected_tail_paths | default(fluent_bit_tail_paths) | join(',') }}
-    Tag               horus.{{ group_names | intersect(['edge', 'agents', 'security', 'automation', 'identity', 'databases', 'secrets', 'collaboration', 'wiki', 'vikunja', 'gitea', 'registry', 'jenkins']) | first | default('host') }}
+    Tag               horus.{{ fluent_bit_service_profile | default('host') }}
     Read_from_Head    False
     DB                {{ fluent_bit_state_dir }}/horus.db
 {% if fluent_bit_service_profile == 'databases' %}
@@ -31,4 +31,15 @@
     Path              {{ fluent_bit_output_path | dirname }}
     File              {{ fluent_bit_output_path | basename }}
     Format            plain
+
+{% if fluent_bit_loki_enabled | bool %}
+[OUTPUT]
+    Name              loki
+    Match             horus.*
+    Host              {{ fluent_bit_loki_host }}
+    Port              {{ fluent_bit_loki_port }}
+    URI               {{ fluent_bit_loki_uri }}
+    Labels            job=horus-fluent-bit,host={{ inventory_hostname }},profile={{ fluent_bit_service_profile }}
+    Line_Format       json
+{% endif %}
 

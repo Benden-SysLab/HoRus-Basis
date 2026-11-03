@@ -1,0 +1,7 @@
+---
+- name: Install shared HoRus host baseline
+  hosts: basis_targets
+  become: true
+  gather_facts: true
+  roles:
+    - host_baseline

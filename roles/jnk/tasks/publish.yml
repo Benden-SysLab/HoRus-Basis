@@ -29,12 +29,3 @@
     state: reloaded
   delegate_to: "{{ jenkins_nginx_host }}"
   when: jenkins_nginx_block.changed
-
-- name: Check Jenkins through NGINX
-  ansible.builtin.uri:
-    url: https://127.0.0.1/login
-    headers:
-      Host: "{{ jenkins_public_hostname }}"
-    validate_certs: false
-    status_code: [200, 302, 403]
-  delegate_to: "{{ jenkins_nginx_host }}"

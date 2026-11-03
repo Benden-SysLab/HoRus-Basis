@@ -1,0 +1,16 @@
+[Unit]
+Description=Refresh HoRus portal service reachability
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ nginx_portal_health_script }}
+User=root
+Group=root
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths={{ nginx_portal_services_dir }}
+ReadWritePaths={{ nginx_portal_health_dir }}

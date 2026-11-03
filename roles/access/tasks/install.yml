@@ -48,6 +48,9 @@
     dest: "{{ access_install_root }}"
     remote_src: true
     creates: "{{ access_release_dir }}/bin/kc.sh"
+    owner: "{{ access_system_user }}"
+    group: "{{ access_system_group }}"
+  register: access_release_extracted
 
 - name: Set Keycloak release ownership
   ansible.builtin.file:
@@ -55,6 +58,7 @@
     owner: "{{ access_system_user }}"
     group: "{{ access_system_group }}"
     recurse: true
+  when: access_release_extracted.changed
 
 - name: Point Keycloak current symlink at selected release
   ansible.builtin.file:

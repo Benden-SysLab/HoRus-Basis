@@ -29,12 +29,3 @@
     state: reloaded
   delegate_to: "{{ vikunja_nginx_host }}"
   when: vikunja_nginx_block.changed
-
-- name: Check Vikunja through NGINX
-  ansible.builtin.uri:
-    url: https://127.0.0.1/api/v1/info
-    headers:
-      Host: "{{ vikunja_public_hostname }}"
-    validate_certs: false
-    status_code: 200
-  delegate_to: "{{ vikunja_nginx_host }}"

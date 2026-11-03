@@ -1,23 +1,6 @@
 ---
-- name: Install Vault baseline
-  hosts: secrets
-  become: true
-  vars:
-    keepass_master_password: "{{ hostvars['localhost'].horus_keepass_master_password }}"
-    vault_postgres_user: >-
-      {{ lookup('keepass2', keepass_vault_postgres_entry,
-                database=keepass_database_path,
-                master_password=keepass_master_password,
-                field='username') }}
-    vault_postgres_password: >-
-      {{ lookup('keepass2', keepass_vault_postgres_entry,
-                database=keepass_database_path,
-                master_password=keepass_master_password,
-                field='password') }}
-    technitium_api_token: >-
-      {{ lookup('keepass2', keepass_technitium_token_entry,
-                database=keepass_database_path,
-                master_password=keepass_master_password,
-                field='password') }}
-  roles:
-    - vault
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Stage 03 - Vault
+  ansible.builtin.import_playbook: stages/03_vault.yml

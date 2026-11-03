@@ -1,5 +1,9 @@
 # psql_exporter
 
-PostgreSQL exporter skeleton. It is selected for database hosts and will be
-implemented together with the PostgreSQL service role.
+Installs and configures `prometheus-postgres-exporter` on PostgreSQL hosts.
+The exporter listens on the host address at port `9187`, so the Prometheus
+instance in HoRus-Observability can scrape `/metrics`.
+
+The Prometheus scrape configuration and firewall policy are maintained by the
+observability/gateway layers; see `docs/OBSERVABILITY_CONTRACT.md`.
 

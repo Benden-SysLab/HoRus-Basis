@@ -3,15 +3,20 @@
 - name: Read installed package state for Fluent Bit
   ansible.builtin.package_facts:
     manager: auto
+  when: fluent_bit_install_package | bool
 
 - name: Install Fluent Bit package
   ansible.builtin.include_tasks: install.yml
-  when: fluent_bit_package_name not in ansible_facts.packages
+  when:
+    - fluent_bit_install_package | bool
+    - fluent_bit_package_name not in ansible_facts.packages
 
 - name: Configure Fluent Bit for this service
   ansible.builtin.include_tasks: config.yml
+  when: fluent_bit_configure_service | bool
 
 - name: Configure Fluent Bit logging lifecycle
   ansible.builtin.include_tasks: logging.yml
+  when: fluent_bit_configure_service | bool
 
 

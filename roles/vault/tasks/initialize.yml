@@ -17,7 +17,7 @@
   ansible.builtin.command:
     argv:
       - "{{ ansible_playbook_python }}"
-      - "{{ playbook_dir }}/../scripts/vault_keepass.py"
+      - "{{ inventory_dir }}/../scripts/vault_keepass.py"
       - verify
       - --database
       - "{{ keepass_database_path }}"
@@ -30,14 +30,29 @@
   vars:
     ansible_become: false
   changed_when: false
+  failed_when: false
+  register: vault_keepass_initialization_verify
   no_log: true
   when: vault_initial_status_data.initialized | bool
+
+- name: Report missing Vault initialization material safely
+  ansible.builtin.fail:
+    msg: >-
+      Vault is already initialized, but its active initialization material in
+      KeePass is not usable: {{ vault_keepass_initialization_verify.stderr
+      | default('KeePass verification returned no diagnostic') }}.
+      Expected group {{ vault_keepass_initialization_group }} with a non-empty
+      Root Token and exactly five non-empty entries named Unseal Key 1..5.
+      Archived credentials must not be silently reused for a rebuilt Vault.
+  when:
+    - vault_initial_status_data.initialized | bool
+    - vault_keepass_initialization_verify.rc | default(1) != 0
 
 - name: Check KeePass before Vault initialization
   ansible.builtin.command:
     argv:
       - "{{ ansible_playbook_python }}"
-      - "{{ playbook_dir }}/../scripts/vault_keepass.py"
+      - "{{ inventory_dir }}/../scripts/vault_keepass.py"
       - check
       - --database
       - "{{ keepass_database_path }}"
@@ -73,7 +88,7 @@
   ansible.builtin.command:
     argv:
       - "{{ ansible_playbook_python }}"
-      - "{{ playbook_dir }}/../scripts/vault_keepass.py"
+      - "{{ inventory_dir }}/../scripts/vault_keepass.py"
       - store
       - --database
       - "{{ keepass_database_path }}"
@@ -100,7 +115,7 @@
   ansible.builtin.command:
     argv:
       - "{{ ansible_playbook_python }}"
-      - "{{ playbook_dir }}/../scripts/vault_keepass.py"
+      - "{{ inventory_dir }}/../scripts/vault_keepass.py"
       - read
       - --database
       - "{{ keepass_database_path }}"

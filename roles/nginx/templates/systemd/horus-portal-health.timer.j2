@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically refresh HoRus portal service reachability
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec={{ nginx_portal_health_interval }}s
+AccuracySec=5s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

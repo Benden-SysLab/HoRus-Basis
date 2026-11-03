@@ -17,9 +17,12 @@
   ansible.builtin.include_tasks: initialize.yml
 - name: Validate Vault
   ansible.builtin.include_tasks: test.yml
+  tags: [deep_verify]
 - name: Publish Vault in central DNS
   ansible.builtin.include_role:
     name: technitium_dns
+  when: horus_manage_dns | bool
+  tags: [dns]
   vars:
     technitium_dns_record_name: "{{ vault_public_hostname }}"
     technitium_dns_record_address: "{{ horus_portal_dns_address }}"

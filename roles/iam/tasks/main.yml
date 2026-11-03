@@ -15,4 +15,5 @@
     name: fluent_bit
 - name: Validate service
   ansible.builtin.include_tasks: test.yml
+  tags: [deep_verify]
 

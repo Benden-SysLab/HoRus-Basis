@@ -28,16 +28,55 @@
   register: fluent_bit_repository_keyring
 
 - name: Download Fluent Bit repository signing key
-  ansible.builtin.get_url:
-    url: "{{ fluent_bit_repository_key_url }}"
-    dest: /etc/apt/keyrings/fluentbit.asc
-    owner: root
-    group: root
-    mode: "0644"
-    timeout: 30
   when:
     - not fluent_bit_repository_key.stat.exists
     - not fluent_bit_repository_keyring.stat.exists
+  block:
+    - name: Download signing key with default TLS settings
+      ansible.builtin.get_url:
+        url: "{{ fluent_bit_repository_key_url }}"
+        dest: /etc/apt/keyrings/fluentbit.asc
+        owner: root
+        group: root
+        mode: "0644"
+        timeout: 30
+  rescue:
+    - name: Download signing key with compact X25519 handshake
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --fail
+          - --show-error
+          - --silent
+          - --location
+          - --proto
+          - '=https'
+          - --proto-redir
+          - '=https'
+          - --curves
+          - X25519
+          - --connect-timeout
+          - '10'
+          - --max-time
+          - '60'
+          - --output
+          - /etc/apt/keyrings/fluentbit.asc.download
+          - "{{ fluent_bit_repository_key_url }}"
+      changed_when: true
+
+    - name: Publish downloaded signing key
+      ansible.builtin.copy:
+        src: /etc/apt/keyrings/fluentbit.asc.download
+        remote_src: true
+        dest: /etc/apt/keyrings/fluentbit.asc
+        owner: root
+        group: root
+        mode: "0644"
+  always:
+    - name: Remove temporary signing key download
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/fluentbit.asc.download
+        state: absent
 
 - name: Convert Fluent Bit signing key to keyring format
   ansible.builtin.command:

@@ -27,6 +27,22 @@ all:
     keepass_jenkins_oidc_entry: CHANGE_ME_KEEPASS_ENTRY
     keepass_jenkins_recovery_entry: CHANGE_ME_KEEPASS_ENTRY
     keepass_jenkins_agent_ssh_entry: CHANGE_ME_KEEPASS_ENTRY
+    # Jenkins trust-zone key entries are stored under HoRus/Agent.
+    keepass_jenkins_workloads_ssh_entry: HoRus/Agent/Jenkins-SSH-Workloads
+    keepass_jenkins_proxmox_ssh_entry: HoRus/Agent/Jenkins-SSH-Proxmox
+    keepass_jenkins_gateway_ssh_entry: HoRus/Agent/Jenkins-SSH-Gateway
+    keepass_jenkins_external_gateway_ssh_entry: HoRus/Agent/Jenkins-SSH-External-Gateway
+    # Root bootstrap credentials used for first connection to infrastructure
+    # targets. Keep the actual passwords only in KeePass.
+    # Workload entries are directly in the HoRus group and share title
+    # horus-srv; keepass2 selects the matching username.
+    keepass_bootstrap_horus_srv_entry: HoRus/horus-srv
+    keepass_bootstrap_pmx_node01_entry: HoRus/horus-pmx-node/horus-pmx-node01
+    keepass_bootstrap_pmx_node02_entry: HoRus/horus-pmx-node/horus-pmx-node02
+    keepass_bootstrap_pmx_node03_entry: HoRus/horus-pmx-node/horus-pmx-node03
+    keepass_bootstrap_pmx_node04_entry: HoRus/horus-pmx-node/horus-pmx-node04
+    keepass_bootstrap_gateway_entry: HoRus/horus-gw-node01/horus-gw-node01
+    keepass_bootstrap_external_gateway_entry: HoRus/out-gw-nl01/out-gw-nl01
     keepass_gitguardian_token_group: CHANGE_ME_KEEPASS_ENTRY
 
     technitium_api_url: CHANGE_ME_DNS_API_URL
@@ -111,6 +127,9 @@ all:
     ansible_runtime_user: CHANGE_ME_AUTOMATION_USER
     ansible_runtime_key: CHANGE_ME_KEY_ZONE
     ansible_runtime_key_filename: CHANGE_ME_KEY_FILENAME
+    # true for a non-root bootstrap account whose host-specific sudo password
+    # is read from KeePass; root bootstrap hosts override this to false.
+    ansible_bootstrap_become: true
     ansible_rollout_become: true
     horus_jenkins_agent_user: CHANGE_ME_AGENT_USER
     horus_jenkins_ansible_user: CHANGE_ME_AUTOMATION_USER
@@ -121,14 +140,6 @@ all:
     horus_jenkins_external_gateway_key_filename: CHANGE_ME_KEY_FILENAME
     horus_controller_bootstrap_ssh_dir: CHANGE_ME_CONTROLLER_SSH_DIR
     horus_ansible_bootstrap_key_files: []
-    horus_jenkins_workloads_private_key_path: CHANGE_ME
-    horus_jenkins_workloads_public_key_path: CHANGE_ME
-    horus_jenkins_proxmox_private_key_path: CHANGE_ME
-    horus_jenkins_proxmox_public_key_path: CHANGE_ME
-    horus_jenkins_gateway_private_key_path: CHANGE_ME
-    horus_jenkins_gateway_public_key_path: CHANGE_ME
-    horus_jenkins_external_gateway_private_key_path: CHANGE_ME
-    horus_jenkins_external_gateway_public_key_path: CHANGE_ME
     nginx_portal_foundation_services: []
 
   hosts:
@@ -165,4 +176,15 @@ all:
     horus-pmx-node03: {ansible_host: CHANGE_ME}
     horus-pmx-node04: {ansible_host: CHANGE_ME}
     horus-gw-node01: {ansible_host: CHANGE_ME}
-    out-gw-nl01: {ansible_host: CHANGE_ME}
+    out-gw-nl01:
+      ansible_host: CHANGE_ME
+      # After the one-time external-host bootstrap, use the dedicated Jenkins
+      # key and passwordless sudo for repeatable Stage 10 runs.
+      ansible_user: CHANGE_ME_AUTOMATION_USER
+      ansible_private_key_file: CHANGE_ME_PROTECTED_WSL_KEY_PATH
+      ansible_become_password: ""
+      ansible_bootstrap_become: true
+      ansible_runtime_user: CHANGE_ME_AUTOMATION_USER
+      ansible_runtime_key: gateway_out
+      ansible_runtime_key_filename: CHANGE_ME_KEY_FILENAME
+      ansible_rollout_become: true

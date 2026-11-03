@@ -131,3 +131,4 @@
     state: absent
   delegate_to: "{{ wiki_keycloak_host }}"
   no_log: true
+  changed_when: false

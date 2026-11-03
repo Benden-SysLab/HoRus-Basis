@@ -1,0 +1,6 @@
+---
+- name: Load controller credentials
+  ansible.builtin.import_playbook: _controller_credentials.yml
+
+- name: Verify existing Jenkins Ansible estate
+  ansible.builtin.import_playbook: stages/00_runtime_preflight.yml

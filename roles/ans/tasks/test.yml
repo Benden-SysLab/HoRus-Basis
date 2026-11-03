@@ -4,6 +4,9 @@
     argv: ["{{ ansible_controller_venv }}/bin/ansible", --version]
   register: ansible_controller_version_result
   changed_when: false
+  tags:
+    - never
+    - deep_verify
 
 - name: Require pinned Ansible Core version
   ansible.builtin.assert:
@@ -14,6 +17,9 @@
     fail_msg: >-
       Expected ansible-core {{ ansible_controller_version }}, got:
       {{ ansible_controller_version_result.stdout | trim }}
+  tags:
+    - never
+    - deep_verify
 
 - name: Validate Ansible controller configuration
   ansible.builtin.command:
@@ -27,6 +33,9 @@
     ANSIBLE_CONFIG: "{{ ansible_controller_config_path }}"
   register: ansible_controller_config_result
   changed_when: false
+  tags:
+    - never
+    - deep_verify
 
 - name: Require Ansible controller workspace settings
   ansible.builtin.assert:
@@ -34,4 +43,7 @@
       - ansible_controller_roles_dir in ansible_controller_config_result.stdout
       - ansible_controller_collections_dir in ansible_controller_config_result.stdout
       - ansible_controller_log_path in ansible_controller_config_result.stdout
+  tags:
+    - never
+    - deep_verify
 

@@ -8,39 +8,20 @@
     state: present
     update_cache: true
 
-- name: Create Vikunja APT keyring directory
-  ansible.builtin.file:
-    path: /etc/apt/keyrings
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Download Vikunja repository signing key
+- name: Download pinned Vikunja release from GitHub
   ansible.builtin.get_url:
-    url: "{{ vikunja_repository_key_url }}"
-    dest: /tmp/vikunja-repository.asc
+    url: "{{ vikunja_package_url }}"
+    dest: "{{ vikunja_package_path }}"
     owner: root
     group: root
     mode: "0644"
-
-- name: Convert Vikunja repository signing key
-  ansible.builtin.command:
-    argv: [gpg, --dearmor, --yes, --output, "{{ vikunja_repository_keyring_path }}", /tmp/vikunja-repository.asc]
-  changed_when: false
-
-- name: Configure Vikunja APT repository
-  ansible.builtin.apt_repository:
-    repo: "{{ vikunja_repository }}"
-    filename: vikunja
-    state: present
+    timeout: 600
+    force: false
 
 - name: Install pinned Vikunja release
   ansible.builtin.apt:
-    name: "vikunja={{ vikunja_version }}"
+    deb: "{{ vikunja_package_path }}"
     state: present
-    update_cache: true
-    allow_downgrade: false
 
 - name: Check installed Vikunja executable
   ansible.builtin.stat:

@@ -3,8 +3,11 @@
   ansible.builtin.lineinfile:
     path: "{{ vikunja_postgres_config_path }}"
     line: >-
-      host    {{ vikunja_postgres_database }}    {{ vikunja_postgres_user }}
-      {{ hostvars['horus-vkj-srv01'].ansible_host }}/32    scram-sha-256
+      {{
+        ['host', vikunja_postgres_database, vikunja_postgres_user,
+         hostvars['horus-vkj-srv01'].ansible_host ~ '/32', 'scram-sha-256']
+        | join('    ')
+      }}
     insertafter: EOF
     state: present
   delegate_to: horus-db-srv03

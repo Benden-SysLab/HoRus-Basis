@@ -8,8 +8,10 @@ account, and appends each public key only to targets in its zone. Key file
 names, account names, host membership, and controller paths come from the
 private inventory overlay.
 
-The rollout does not replace existing `authorized_keys` and does not grant new
-passwordless sudo rights. During the one-time Stage 10 bootstrap, SSH uses
+The rollout preserves existing `authorized_keys`, creates or verifies the
+dedicated `jenkins-srv` automation account, installs the zone-specific public
+key, and grants that account passwordless sudo through a validated
+`/etc/sudoers.d/` drop-in. During the one-time Stage 10 bootstrap, SSH uses
 `StrictHostKeyChecking=accept-new`. Previously unseen host keys are therefore
 recorded without an interactive prompt, while changed keys remain a hard
 failure. Host keys are then read through these bootstrap connections and

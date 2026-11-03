@@ -14,6 +14,13 @@ fluent_bit_parser_path: /etc/fluent-bit/parsers.conf
 fluent_bit_log_dir: /var/log/fluent-bit
 fluent_bit_state_dir: /var/lib/fluent-bit
 fluent_bit_output_path: /var/log/fluent-bit/host.log
+fluent_bit_loki_enabled: true
+fluent_bit_loki_host: "{{ observability_loki_host }}"
+fluent_bit_loki_port: "{{ observability_loki_port }}"
+fluent_bit_loki_uri: "{{ observability_loki_uri }}"
+fluent_bit_install_package: >-
+  {{ not (horus_host_baseline_ready | default(false) | bool) }}
+fluent_bit_configure_service: true
 fluent_bit_tail_paths:
   - /var/log/*.log
   - /var/log/**/*.log

@@ -18,6 +18,38 @@
   changed_when: false
   no_log: true
 
+- name: Read configured Access realm
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - get
+      - "realms/{{ access_realm }}"
+      - --config
+      - "{{ access_personal_kcadm_config }}"
+      - -q
+      - "realm={{ access_realm }}"
+  register: access_realm_lookup
+  changed_when: false
+  failed_when: access_realm_lookup.rc not in [0, 1]
+  no_log: true
+
+- name: Create configured Access realm
+  ansible.builtin.command:
+    argv:
+      - "{{ access_current_dir }}/bin/kcadm.sh"
+      - create
+      - realms
+      - --config
+      - "{{ access_personal_kcadm_config }}"
+      - -s
+      - "realm={{ access_realm }}"
+      - -s
+      - enabled=true
+      - -s
+      - "displayName=HoRus"
+  when: access_realm_lookup.rc != 0
+  no_log: true
+
 - name: Read personal Access account
   ansible.builtin.command:
     argv:
@@ -32,7 +64,14 @@
       - "username={{ access_personal_user }}"
   register: access_personal_users
   changed_when: false
-  no_log: true
+  failed_when: false
+
+- name: Report personal Access account lookup failure
+  ansible.builtin.fail:
+    msg: >-
+      Keycloak personal account lookup failed (rc={{ access_personal_users.rc }}):
+      {{ access_personal_users.stderr | default('no stderr') }}
+  when: access_personal_users.rc != 0
 
 - name: Create personal Access account
   ansible.builtin.command:
@@ -186,3 +225,4 @@
     path: "{{ access_personal_kcadm_config }}"
     state: absent
   no_log: true
+  changed_when: false

@@ -78,6 +78,11 @@ The playbooks prompt for the KeePass master password and keep it only in
 controller memory for the current run. `.kdbx`, `.keyx`, virtual environments,
 Ansible runtime data and retry files are ignored by Git.
 
+Before the first remote play, bootstrap SSH keys are copied from the configured
+Windows `.ssh/horus` paths into a protected WSL directory. Privilege escalation
+passwords are selected per target from KeePass by entry path and SSH username;
+do not pass a shared password with `-K` or `-k`.
+
 Sensitive topology and integration metadata are separated from the public
 inventory. Copy `inventory/vault/horus_vault.yml.example` to
 `inventory/vault/horus_vault.yml` and fill the local file. The real overlay is
@@ -134,19 +139,29 @@ export HORUS_KEEPASS_DATABASE='/mnt/c/path/to/passwords.kdbx'
 
 .venv-wsl/bin/ansible-playbook \
   playbooks/06_wiki.yml \
-  --limit horus-wiki-srv01 \
-  -K
+  --limit horus-wiki-srv01
 ```
 
 Run the complete pipeline only when a full rollout is intended:
 
 ```bash
-.venv-wsl/bin/ansible-playbook playbooks/00_full_install.yml -K
+bash scripts/run_full_install.sh
 ```
+
+The wrapper enables managed DNS publication by default. Set
+`HORUS_MANAGE_DNS=false` before running it when DNS changes are not intended.
+Additional Ansible arguments such as `--limit` or `--check` can be appended to
+the command.
+
+The aggregate pipeline starts with Stage 00, which installs shared operator
+tools and the Fluent Bit package once per host. Each service stage then applies
+only its service-specific Fluent Bit profile. Standalone stage playbooks remain
+self-contained.
 
 Use `--limit` for a scoped rerun. A service stage may also update NGINX, DNS,
 gateway policy or its PostgreSQL database when those integrations belong to
-that service.
+that service. DNS writes are disabled by default on routine reruns; enable them
+explicitly with `-e horus_manage_dns=true` when publishing or repairing records.
 
 ## Validation
 
@@ -157,9 +172,19 @@ Before deployment:
 .venv-wsl/bin/ansible-playbook playbooks/00_full_install.yml --list-hosts
 ```
 
-After deployment, use the checks built into each role and verify the service
-through its published HoRus URL. An Ansible `ok` result is configuration
-evidence, not a substitute for endpoint and authentication verification.
+A normal deployment performs the required smoke checks: configuration syntax,
+service state, local health and one public proxy request where applicable.
+Additional diagnostic checks are opt-in:
+
+```bash
+.venv-wsl/bin/ansible-playbook playbooks/00_full_install.yml \
+  --tags deep_verify
+```
+
+The deep checks cover items such as every portal icon, exact Java/runtime
+paths, Vault PostgreSQL row evidence and the external GitGuardian API. An
+Ansible `ok` result is configuration evidence, not a substitute for manually
+checking endpoint authentication.
 
 ## Repository structure
 

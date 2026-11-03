@@ -9,5 +9,38 @@
                 database=keepass_database_path,
                 master_password=keepass_master_password,
                 field='password') }}
+  pre_tasks:
+    - name: Install portal health gateway policy scripts
+      ansible.builtin.copy:
+        src: "{{ inventory_dir }}/../scripts/{{ item }}"
+        dest: "/tmp/{{ item }}"
+        owner: root
+        group: root
+        mode: "0700"
+      loop:
+        - apply_portal_health_gateway_access.sh
+        - commit_portal_health_gateway_access.sh
+      delegate_to: horus-gw-node01
+      run_once: true
+
+    - name: Apply rollback-protected portal health gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/apply_portal_health_gateway_access.sh]
+      delegate_to: horus-gw-node01
+      run_once: true
+      register: portal_health_gateway_policy
+      changed_when: "'APPLY_OK' in portal_health_gateway_policy.stdout"
   roles:
     - nginx
+  post_tasks:
+    - name: Refresh portal health after gateway policy verification
+      ansible.builtin.command:
+        argv: [systemctl, start, horus-portal-health.service]
+      changed_when: false
+
+    - name: Commit verified portal health gateway policy
+      ansible.builtin.command:
+        argv: [bash, /tmp/commit_portal_health_gateway_access.sh]
+      delegate_to: horus-gw-node01
+      run_once: true
+      changed_when: portal_health_gateway_policy.changed

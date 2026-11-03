@@ -1,0 +1,14 @@
+---
+- name: Install shared operator tools
+  ansible.builtin.include_role:
+    name: common_tools
+
+- name: Install shared Fluent Bit package
+  ansible.builtin.include_role:
+    name: fluent_bit
+  vars:
+    fluent_bit_configure_service: false
+
+- name: Record completed host baseline for this playbook run
+  ansible.builtin.set_fact:
+    horus_host_baseline_ready: true

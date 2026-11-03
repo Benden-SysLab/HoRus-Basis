@@ -1,0 +1,118 @@
+---
+- name: Verify previously prepared Jenkins Ansible estate
+  hosts: agents
+  gather_facts: false
+  become: true
+  vars:
+    jenkins_ansible_user: "{{ horus_jenkins_ansible_user }}"
+    jenkins_ansible_home: "{{ horus_jenkins_ansible_home }}"
+    ansible_controller_root: /opt/horus/ansible
+    ansible_controller_venv: "{{ ansible_controller_root }}/venv"
+    ansible_controller_config_path: /etc/ansible/ansible.cfg
+    ansible_controller_ssh_dir: "{{ jenkins_ansible_home }}/.ssh/horus"
+    ansible_controller_inventory_path: /srv/horus/ansible/inventory/horus.yml
+    ansible_controller_known_hosts_path: "{{ ansible_controller_ssh_dir }}/known_hosts"
+    ansible_controller_ready_marker: "{{ ansible_controller_root }}/.estate-ready"
+  tasks:
+    - name: Check existing Jenkins Ansible runtime files
+      ansible.builtin.stat:
+        path: "{{ runtime_file }}"
+      loop:
+        - "{{ ansible_controller_venv }}/bin/ansible"
+        - "{{ ansible_controller_venv }}/bin/ansible-inventory"
+        - "{{ ansible_controller_config_path }}"
+        - "{{ ansible_controller_inventory_path }}"
+        - "{{ ansible_controller_known_hosts_path }}"
+      loop_control:
+        loop_var: runtime_file
+        label: "{{ runtime_file }}"
+      register: jenkins_preflight_runtime_files
+
+    - name: Select existing Jenkins runtime state
+      ansible.builtin.set_fact:
+        jenkins_preflight_runtime_exists: >-
+          {{
+            jenkins_preflight_runtime_files.results
+            | map(attribute='stat.exists')
+            | select('equalto', true)
+            | list
+            | length == jenkins_preflight_runtime_files.results | length
+          }}
+        jenkins_preflight_inventory_matches: false
+
+    - name: Read existing managed inventory before the long rollout
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - "{{ jenkins_ansible_user }}"
+          - --
+          - "{{ ansible_controller_venv }}/bin/ansible-inventory"
+          - --list
+      environment:
+        HOME: "{{ jenkins_ansible_home }}"
+        ANSIBLE_CONFIG: "{{ ansible_controller_config_path }}"
+      register: jenkins_preflight_inventory
+      changed_when: false
+      failed_when: false
+      when: jenkins_preflight_runtime_exists | bool
+
+    - name: Compare Jenkins inventory with current managed targets
+      ansible.builtin.set_fact:
+        jenkins_preflight_inventory_matches: >-
+          {{
+            ((jenkins_preflight_inventory.stdout | from_json)._meta.hostvars.keys()
+             | list | sort)
+            == (groups['ansible_managed_targets'] | sort)
+          }}
+      when: jenkins_preflight_inventory.rc | default(1) == 0
+
+    - name: Verify all runtime targets before the long rollout
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - "{{ jenkins_ansible_user }}"
+          - --
+          - "{{ ansible_controller_venv }}/bin/ansible"
+          - all
+          - -m
+          - ansible.builtin.ping
+          - -o
+      environment:
+        HOME: "{{ jenkins_ansible_home }}"
+        ANSIBLE_CONFIG: "{{ ansible_controller_config_path }}"
+        ANSIBLE_TIMEOUT: "10"
+      register: jenkins_estate_preflight
+      changed_when: false
+      failed_when: false
+      when: jenkins_preflight_inventory_matches | bool
+
+    - name: Stop before service rollout when Jenkins access is incomplete
+      ansible.builtin.assert:
+        that:
+          - jenkins_preflight_inventory_matches | bool
+          - jenkins_estate_preflight.rc | default(1) == 0
+        fail_msg: >-
+          Existing Jenkins Ansible access failed before the service rollout.
+          Run playbooks/10_agent.yml first to repair target access, then rerun
+          the full installation. No service roles were changed in this run.
+      when: jenkins_preflight_runtime_exists | bool
+
+    - name: Record the early Jenkins Ansible estate verification
+      ansible.builtin.copy:
+        dest: "{{ ansible_controller_ready_marker }}"
+        content: |-
+          targets={{ groups['ansible_managed_targets'] | length }}
+          verified_by={{ inventory_hostname }}
+        owner: root
+        group: horus-ansible
+        mode: "0640"
+      when: jenkins_preflight_runtime_exists | bool
+
+    - name: Report fresh Jenkins Ansible installation path
+      ansible.builtin.debug:
+        msg: >-
+          Jenkins Ansible runtime is not installed yet; the early estate
+          preflight is skipped and Stage 10 will perform the first bootstrap.
+      when: not (jenkins_preflight_runtime_exists | bool)

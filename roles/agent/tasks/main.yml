@@ -33,4 +33,5 @@
     tasks_from: agent.yml
 - name: Validate Jenkins agent
   ansible.builtin.include_tasks: test.yml
+  tags: [deep_verify]
 

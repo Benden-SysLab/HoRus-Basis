@@ -12,11 +12,8 @@ vikunja_log_dir: /var/log/vikunja
 vikunja_http_port: 3456
 vikunja_public_hostname: ""
 vikunja_public_url: ""
-vikunja_repository_key_url: https://dl.vikunja.io/repos/gpg.key
-vikunja_repository_keyring_path: /etc/apt/keyrings/vikunja.gpg
-vikunja_repository: >-
-  deb [signed-by={{ vikunja_repository_keyring_path }}]
-  https://dl.vikunja.io/repos/apt stable main
+vikunja_package_url: "https://github.com/go-vikunja/vikunja/releases/download/v{{ vikunja_version }}/vikunja-v{{ vikunja_version }}-x86_64.deb"
+vikunja_package_path: "/tmp/vikunja-{{ vikunja_version }}-x86_64.deb"
 
 vikunja_postgres_host: ""
 vikunja_postgres_port: 5432

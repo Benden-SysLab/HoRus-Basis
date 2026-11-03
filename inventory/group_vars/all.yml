@@ -20,10 +20,23 @@ gitguardian_version: 1.56.0
 
 postgres_exporter_enabled: true
 postgres_exporter_version: latest
-postgres_exporter_listen_address: 127.0.0.1
+postgres_exporter_listen_address: "{{ ansible_host | default('127.0.0.1') }}"
+
+# Observability endpoints. These are routing coordinates, not secrets.
+observability_prometheus_host: 10.10.50.41
+observability_prometheus_port: 9090
+observability_loki_host: 10.10.50.43
+observability_loki_port: 3100
+observability_loki_uri: /loki/api/v1/push
+observability_otel_host: 10.10.50.44
+observability_otel_metrics_port: 8889
 
 # Controller-side KeePass integration. Sensitive entry paths are supplied by
 # inventory/vault/horus_vault.yml. Set the database path at runtime:
 # export HORUS_KEEPASS_DATABASE=/mnt/c/path/to/horus.kdbx
 keepass_database_path: "{{ lookup('ansible.builtin.env', 'HORUS_KEEPASS_DATABASE') }}"
+
+# DNS publication is useful during the first rollout, but it is not required
+# for every idempotency run. Override with -e horus_manage_dns=true when needed.
+horus_manage_dns: false
 

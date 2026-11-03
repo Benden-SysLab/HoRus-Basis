@@ -76,6 +76,11 @@ Playbook запрашивает мастер-пароль KeePass и храни�
 контроллера на время текущего запуска. Файлы `.kdbx`, `.keyx`, виртуальные
 окружения, runtime Ansible и retry-файлы исключены из Git.
 
+До первого удалённого play bootstrap SSH-ключи копируются из настроенных
+Windows-путей `.ssh/horus` в защищённый каталог WSL. Пароль повышения прав
+выбирается отдельно для каждого target из KeePass по пути записи и SSH-логину;
+общий пароль через `-K` или `-k` передавать не нужно.
+
 Чувствительная топология и данные интеграций отделены от публичного inventory.
 Скопируйте `inventory/vault/horus_vault.yml.example` в
 `inventory/vault/horus_vault.yml` и заполните локальный файл. Реальный overlay
@@ -132,19 +137,27 @@ export HORUS_KEEPASS_DATABASE='/mnt/c/path/to/passwords.kdbx'
 
 .venv-wsl/bin/ansible-playbook \
   playbooks/06_wiki.yml \
-  --limit horus-wiki-srv01 \
-  -K
+  --limit horus-wiki-srv01
 ```
 
 Полный pipeline запускайте только для полного развёртывания:
 
 ```bash
-.venv-wsl/bin/ansible-playbook playbooks/00_full_install.yml -K
+bash scripts/run_full_install.sh
 ```
+
+Wrapper по умолчанию включает управляемую публикацию DNS. Если DNS менять не
+нужно, перед запуском задайте `HORUS_MANAGE_DNS=false`. Дополнительные аргументы
+Ansible, например `--limit` или `--check`, можно дописать после имени скрипта.
+
+Полный pipeline начинается с этапа 00: общие инструменты и пакет Fluent Bit
+устанавливаются один раз на каждый хост. Затем сервисные этапы применяют только
+свой профиль Fluent Bit. Отдельные playbook этапов остаются самодостаточными.
 
 Для точечного повтора используйте `--limit`. Сервисный этап также может
 обновить NGINX, DNS, gateway policy или свою БД PostgreSQL, если эта интеграция
-принадлежит сервису.
+принадлежит сервису. Запись в DNS при обычном повторном запуске выключена;
+для публикации или исправления записей добавьте `-e horus_manage_dns=true`.
 
 ## Проверка
 
@@ -153,9 +166,19 @@ export HORUS_KEEPASS_DATABASE='/mnt/c/path/to/passwords.kdbx'
 .venv-wsl/bin/ansible-playbook playbooks/00_full_install.yml --list-hosts
 ```
 
-После установки используйте проверки роли и отдельно откройте опубликованный
-HoRus URL. Результат Ansible `ok` подтверждает конфигурацию, но не заменяет
-проверку endpoint и авторизации.
+Обычная раскатка выполняет обязательный smoke: синтаксис конфигурации,
+состояние сервиса, локальный health и один запрос через публичный proxy, где он
+есть. Дополнительные диагностические проверки включаются явно:
+
+```bash
+.venv-wsl/bin/ansible-playbook playbooks/00_full_install.yml \
+  --tags deep_verify
+```
+
+В deep-проверки входят все иконки портала, точные пути Java/runtime,
+подтверждение строк Vault в PostgreSQL и внешний API GitGuardian. Результат
+Ansible `ok` подтверждает конфигурацию, но не заменяет ручную проверку
+авторизации через опубликованный URL.
 
 ## Структура репозитория
 

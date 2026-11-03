@@ -3,6 +3,9 @@
   ansible.builtin.command: "{{ jenkins_agent_java_command }} -version"
   register: jenkins_agent_java
   changed_when: false
+  tags:
+    - never
+    - deep_verify
 
 - name: Require Java 25 on Jenkins agent
   ansible.builtin.assert:
@@ -10,6 +13,9 @@
       - >-
         jenkins_agent_java.stderr is
         search('version "' ~ jenkins_agent_java_major_version ~ '[.]')
+  tags:
+    - never
+    - deep_verify
 
 - name: Validate Jenkins agent connection
   block:

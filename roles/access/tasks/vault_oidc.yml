@@ -218,6 +218,7 @@
         capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"]
       }
   delegate_to: "{{ vault_oidc_host }}"
+  changed_when: false
 
 - name: Install personal Vault administrator policy
   ansible.builtin.command:
@@ -237,6 +238,7 @@
     path: "{{ vault_oidc_admin_policy_path }}"
     state: absent
   delegate_to: "{{ vault_oidc_host }}"
+  changed_when: false
 
 - name: Configure personal Vault administrator OIDC role
   ansible.builtin.uri:
@@ -293,3 +295,4 @@
     path: "{{ vault_oidc_kcadm_config }}"
     state: absent
   no_log: true
+  changed_when: false

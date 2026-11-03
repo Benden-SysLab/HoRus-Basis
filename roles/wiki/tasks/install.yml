@@ -37,6 +37,22 @@
       - /tmp/nodesource-repo.asc
   changed_when: false
 
+- name: Find obsolete NodeSource 22 repository entries
+  ansible.builtin.find:
+    paths: /etc/apt/sources.list.d
+    file_type: file
+    contains: 'deb\.nodesource\.com/node_22\.x'
+    read_whole_file: true
+  register: wiki_obsolete_nodesource_entries
+
+- name: Remove obsolete NodeSource 22 repository entries
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ wiki_obsolete_nodesource_entries.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
 - name: Configure NodeSource repository
   ansible.builtin.apt_repository:
     repo: "{{ wiki_nodesource_repository }}"
@@ -48,6 +64,24 @@
     name: nodejs
     state: present
     update_cache: true
+    allow_downgrade: true
+
+- name: Enforce configured Node.js major version
+  ansible.builtin.shell: >-
+    candidate="$(apt-cache madison nodejs | awk '$3 ~ /^{{ wiki_nodejs_major_version }}[.]/ {print $3; exit}')";
+    case "$candidate" in
+      {{ wiki_nodejs_major_version }}.*)
+        apt-get install -y --allow-downgrades "nodejs=$candidate";
+        ;;
+      *)
+        echo "No Node.js {{ wiki_nodejs_major_version }} candidate is available: $candidate" >&2;
+        exit 1;
+        ;;
+    esac
+  args:
+    executable: /bin/bash
+  register: wiki_node_install
+  changed_when: "'0 upgraded' not in wiki_node_install.stdout"
 
 - name: Read installed Node.js version
   ansible.builtin.command: node --version
@@ -57,8 +91,8 @@
 - name: Require supported Node.js major version
   ansible.builtin.assert:
     that:
-      - (wiki_node_version.stdout | regex_replace('^v', '')).split('.')[0] | int >= 22
-    fail_msg: Wiki.js requires Node.js 22 or newer.
+      - (wiki_node_version.stdout | regex_replace('^v', '')).split('.')[0] | int == wiki_nodejs_major_version
+    fail_msg: Wiki.js 2.5.x requires the configured Node.js 20 LTS runtime.
 
 - name: Create Wiki.js system group
   ansible.builtin.group:
@@ -83,7 +117,7 @@
     mode: "{{ item.mode }}"
   loop:
     - {path: "{{ wiki_install_root }}/releases", owner: root, group: root, mode: "0755"}
-    - {path: "{{ wiki_release_dir }}", owner: root, group: root, mode: "0755"}
+    - {path: "{{ wiki_release_dir }}", owner: "{{ wiki_system_user }}", group: "{{ wiki_system_group }}", mode: "0755"}
     - {path: "{{ wiki_data_dir }}", owner: "{{ wiki_system_user }}", group: "{{ wiki_system_group }}", mode: "0750"}
     - {path: "{{ wiki_log_dir }}", owner: "{{ wiki_system_user }}", group: "{{ wiki_system_group }}", mode: "0750"}
 
@@ -101,6 +135,44 @@
     dest: "{{ wiki_release_dir }}"
     remote_src: true
     creates: "{{ wiki_release_dir }}/server"
+  register: wiki_release_extract
+  notify: Restart Wiki.js
+
+- name: Set Wiki.js release ownership
+  ansible.builtin.file:
+    path: "{{ wiki_release_dir }}"
+    owner: "{{ wiki_system_user }}"
+    group: "{{ wiki_system_group }}"
+    recurse: true
+  when: wiki_release_extract.changed
+
+- name: Fix Wiki.js extract-files package exports
+  ansible.builtin.shell: |
+    python3 - <<'PY'
+    import json
+    from pathlib import Path
+
+    path = Path("{{ wiki_release_dir }}/node_modules/extract-files/package.json")
+    data = json.loads(path.read_text())
+    exports = data.setdefault("exports", {})
+    required = {
+        "./public/extractFiles": "./public/extractFiles.js",
+        "./public/isExtractableFile": "./public/isExtractableFile.js",
+        "./public/ReactNativeFile": "./public/ReactNativeFile.js",
+    }
+    changed = False
+    for key, value in required.items():
+        if exports.get(key) != value:
+            exports[key] = value
+            changed = True
+    if changed:
+        path.write_text(json.dumps(data, indent=2) + "\n")
+    print("changed" if changed else "ok")
+    PY
+  args:
+    executable: /bin/bash
+  register: wiki_extract_files_exports
+  changed_when: "'changed' in wiki_extract_files_exports.stdout"
   notify: Restart Wiki.js
 
 - name: Link current Wiki.js release

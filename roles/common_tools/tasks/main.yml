@@ -5,5 +5,6 @@
     name: "{{ common_tools_packages }}"
     state: present
     update_cache: false
+  when: not (horus_host_baseline_ready | default(false) | bool)
 
 

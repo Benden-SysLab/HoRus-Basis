@@ -1,12 +1,12 @@
 ---
-wiki_version: 2.5.315
+wiki_version: 2.5.274
 wiki_service_name: wiki
 wiki_system_user: wiki
 wiki_system_group: wiki
 wiki_install_root: /opt/wiki
 wiki_release_dir: "{{ wiki_install_root }}/releases/{{ wiki_version }}"
 wiki_current_dir: "{{ wiki_install_root }}/current"
-wiki_archive_url: "https://github.com/Requarks/wiki/releases/download/v{{ wiki_version }}/wiki-js.tar.gz"
+wiki_archive_url: "https://github.com/requarks/wiki/releases/download/{{ wiki_version }}/wiki-js.tar.gz"
 wiki_config_path: "{{ wiki_current_dir }}/config.yml"
 wiki_data_dir: /var/lib/wiki
 wiki_log_dir: /var/log/wiki
@@ -14,7 +14,7 @@ wiki_http_port: 3000
 wiki_public_hostname: ""
 wiki_public_url: ""
 
-wiki_nodejs_major_version: 22
+wiki_nodejs_major_version: 20
 wiki_nodesource_key_url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
 wiki_nodesource_keyring_path: /etc/apt/keyrings/nodesource.gpg
 wiki_nodesource_repository: >-

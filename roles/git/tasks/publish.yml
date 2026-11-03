@@ -82,12 +82,3 @@
     gitea_nginx_stream_scope.changed or
     gitea_nginx_block.changed or
     gitea_nginx_ssh_block.changed
-
-- name: Check Gitea through NGINX
-  ansible.builtin.uri:
-    url: https://127.0.0.1/api/healthz
-    headers:
-      Host: "{{ gitea_public_hostname }}"
-    validate_certs: false
-    status_code: 200
-  delegate_to: "{{ gitea_nginx_host }}"

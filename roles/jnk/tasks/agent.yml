@@ -7,6 +7,7 @@
         suffix: .jenkins-agent-key
       delegate_to: "{{ jenkins_agent_controller_host }}"
       register: jenkins_agent_private_key_file
+      changed_when: false
 
     - name: Install temporary Jenkins agent private key
       ansible.builtin.copy:
@@ -17,6 +18,7 @@
         mode: "0600"
       delegate_to: "{{ jenkins_agent_controller_host }}"
       no_log: true
+      changed_when: false
 
     - name: Create temporary Jenkins agent known-hosts file
       ansible.builtin.tempfile:
@@ -24,6 +26,7 @@
         suffix: .jenkins-agent-known-hosts
       delegate_to: "{{ jenkins_agent_controller_host }}"
       register: jenkins_agent_known_hosts_file
+      changed_when: false
 
     - name: Pin Jenkins agent host key for preflight
       ansible.builtin.copy:
@@ -33,6 +36,7 @@
         group: root
         mode: "0600"
       delegate_to: "{{ jenkins_agent_controller_host }}"
+      changed_when: false
 
     - name: Test Jenkins SSH credential from controller
       ansible.builtin.command:
@@ -79,6 +83,7 @@
         - jenkins_agent_private_key_file is defined
         - jenkins_agent_private_key_file.path is defined
       no_log: true
+      changed_when: false
 
     - name: Remove temporary Jenkins agent known-hosts file
       ansible.builtin.file:
@@ -88,6 +93,7 @@
       when:
         - jenkins_agent_known_hosts_file is defined
         - jenkins_agent_known_hosts_file.path is defined
+      changed_when: false
 
 - name: Wait for Jenkins agent SSH from controller
   ansible.builtin.wait_for:

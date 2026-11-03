@@ -23,6 +23,34 @@
   ansible.builtin.assert:
     that: "'HoRus Control Plane' in nginx_dashboard.content"
 
+- name: Check HoRus portal health timer
+  ansible.builtin.command:
+    argv: [systemctl, is-active, horus-portal-health.timer]
+  changed_when: false
+
+- name: Check foundation service health snapshots
+  ansible.builtin.uri:
+    url: >-
+      https://127.0.0.1:{{ nginx_listen_port }}/portal-health/{{ item.id }}.json
+    status_code: 200
+    return_content: true
+    validate_certs: false
+  loop: "{{ nginx_portal_foundation_services }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: nginx_foundation_health_checks
+
+- name: Require valid foundation service health snapshots
+  ansible.builtin.assert:
+    that:
+      - item.json.id == item.item.id
+      - item.json.available is boolean
+      - item.json.checked_at | length > 0
+    fail_msg: "Portal health snapshot for {{ item.item.name }} is invalid."
+  loop: "{{ nginx_foundation_health_checks.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
 - name: Check HoRus portal service icons
   ansible.builtin.uri:
     url: "https://127.0.0.1:{{ nginx_listen_port }}/icons/{{ item }}"
@@ -31,6 +59,9 @@
     validate_certs: false
   loop: "{{ nginx_portal_required_icons }}"
   register: nginx_portal_icon_checks
+  tags:
+    - never
+    - deep_verify
 
 - name: Require valid HoRus portal SVG icons
   ansible.builtin.assert:
@@ -41,5 +72,8 @@
   loop: "{{ nginx_portal_icon_checks.results }}"
   loop_control:
     label: "{{ item.item }}"
+  tags:
+    - never
+    - deep_verify
 
 

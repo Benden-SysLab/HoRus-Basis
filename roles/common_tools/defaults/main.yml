@@ -15,5 +15,6 @@ common_tools_packages:
   - rsync
   - tmux
   - unzip
+  - prometheus-node-exporter
 
 

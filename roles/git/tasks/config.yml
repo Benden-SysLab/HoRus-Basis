@@ -40,9 +40,6 @@
     argv: [/usr/sbin/sshd, -t]
   changed_when: false
 
-- name: Apply pending Gitea SSH handler
-  ansible.builtin.meta: flush_handlers
-
 - name: Install Gitea configuration
   ansible.builtin.template:
     src: app.ini.j2

@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Write same-origin reachability snapshots for HoRus portal manifests."""
+
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import ssl
+import tempfile
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+
+SERVICES_DIR = Path({{ nginx_portal_services_dir | to_json }})
+HEALTH_DIR = Path({{ nginx_portal_health_dir | to_json }})
+TIMEOUT = {{ nginx_portal_health_timeout | int }}
+TLS_CONTEXT = ssl.create_default_context()
+TLS_CONTEXT.check_hostname = False
+TLS_CONTEXT.verify_mode = ssl.CERT_NONE
+
+
+def probe(manifest_path: Path) -> None:
+    service_id = manifest_path.stem
+    result = {
+        "id": service_id,
+        "available": False,
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        url = manifest.get("health_url") or manifest.get("url")
+        if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+            raise ValueError("manifest has no supported health URL")
+        # Management interfaces are not uniform HTTP applications.  Proxmox
+        # and several embedded devices reject or mishandle HEAD while their
+        # normal UI is reachable.  Open a GET response but do not consume its
+        # body: receiving any HTTP status proves that the web endpoint is
+        # reachable, including authentication and application error pages.
+        request = Request(
+            url,
+            method="GET",
+            headers={
+                "Accept": "text/html,application/json;q=0.9,*/*;q=0.1",
+                "User-Agent": "HoRus-Portal-Health/1",
+            },
+        )
+        try:
+            with urlopen(request, timeout=TIMEOUT, context=TLS_CONTEXT) as response:
+                result["status"] = response.status
+                result["available"] = True
+        except HTTPError as error:
+            result["status"] = error.code
+            result["available"] = True
+    except (OSError, ValueError, json.JSONDecodeError, URLError) as error:
+        result["error"] = type(error).__name__
+
+    HEALTH_DIR.mkdir(parents=True, exist_ok=True)
+    handle, temporary_name = tempfile.mkstemp(prefix=f".{service_id}.", dir=HEALTH_DIR)
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as temporary:
+            json.dump(result, temporary, ensure_ascii=False, separators=(",", ":"))
+            temporary.write("\n")
+        os.chmod(temporary_name, 0o644)
+        os.replace(temporary_name, HEALTH_DIR / f"{service_id}.json")
+    finally:
+        if os.path.exists(temporary_name):
+            os.unlink(temporary_name)
+
+
+def main() -> None:
+    manifests = sorted(SERVICES_DIR.glob("*.json"))
+    with ThreadPoolExecutor(max_workers=min(16, max(1, len(manifests)))) as executor:
+        list(executor.map(probe, manifests))
+
+
+if __name__ == "__main__":
+    main()

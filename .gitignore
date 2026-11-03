@@ -15,12 +15,16 @@ scripts/commit_*_gateway_*.sh
 scripts/audit_*_gateway_*.sh
 !scripts/apply_gitea_gateway_access.sh
 !scripts/commit_gitea_gateway_access.sh
+!scripts/apply_portal_health_gateway_access.sh
+!scripts/commit_portal_health_gateway_access.sh
 
 # Local/runtime files
 *.retry
 .ansible/
 .venv/
 .venv-*/
+.venv-wsl
 __pycache__/
 .pytest_cache/
+.horus-runs/
 

@@ -24,4 +24,21 @@
     enabled: true
     state: started
 
+- name: Enable pg_stat_statements in the administrative database
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -X
+      - -v
+      - ON_ERROR_STOP=1
+      - -d
+      - postgres
+      - -c
+      - CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+  changed_when: false
+
 

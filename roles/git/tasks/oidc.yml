@@ -163,6 +163,7 @@
     state: absent
   delegate_to: "{{ gitea_keycloak_host }}"
   no_log: true
+  changed_when: false
 
 - name: Read Gitea authentication sources
   ansible.builtin.command:

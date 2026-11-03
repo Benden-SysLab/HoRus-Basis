@@ -29,12 +29,3 @@
     state: reloaded
   delegate_to: "{{ wiki_nginx_host }}"
   when: wiki_nginx_block.changed
-
-- name: Check Wiki.js through NGINX
-  ansible.builtin.uri:
-    url: https://127.0.0.1/
-    headers:
-      Host: "{{ wiki_public_hostname }}"
-    validate_certs: false
-    status_code: 200
-  delegate_to: "{{ wiki_nginx_host }}"

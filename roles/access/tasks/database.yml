@@ -3,8 +3,11 @@
   ansible.builtin.lineinfile:
     path: "{{ access_postgres_config_path }}"
     line: >-
-      host    {{ access_postgres_database }}    {{ access_postgres_user }}
-      {{ hostvars['horus-iam-srv01'].ansible_host }}/32    scram-sha-256
+      {{
+        ['host', access_postgres_database, access_postgres_user,
+         hostvars['horus-iam-srv01'].ansible_host ~ '/32', 'scram-sha-256']
+        | join('    ')
+      }}
     insertafter: EOF
     state: present
   delegate_to: horus-db-srv03

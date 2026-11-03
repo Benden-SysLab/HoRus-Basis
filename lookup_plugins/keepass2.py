@@ -28,6 +28,11 @@ options:
     description: Entry field to return.
     choices: [username, password, url, notes, title]
     default: password
+  username:
+    description:
+      - Optional username used to disambiguate entries with the same title
+        inside the selected group.
+    required: false
 """
 
 
@@ -108,6 +113,17 @@ class LookupModule(LookupBase):
                         or datetime.max.replace(tzinfo=timezone.utc)
                     ),
                 )
+            elif kwargs.get('username') is not None:
+                group = keepass.root_group
+                for group_name in entry_path[:-1]:
+                    group = next((g for g in group.subgroups if g.name == group_name), None)
+                    if group is None:
+                        break
+                matches = [] if group is None else [
+                    e for e in group.entries
+                    if e.title == entry_path[-1] and e.username == kwargs['username']
+                ]
+                entry = matches[0] if len(matches) == 1 else None
             elif len(entry_path) == 1:
                 matching_entries = keepass.find_entries(
                     title=entry_path[0],

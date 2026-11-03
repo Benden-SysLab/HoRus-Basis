@@ -12,6 +12,9 @@
   ansible.builtin.command: "{{ jenkins_java_command }} -version"
   register: jenkins_runtime_java
   changed_when: false
+  tags:
+    - never
+    - deep_verify
 
 - name: Require Java 25 for Jenkins
   ansible.builtin.assert:
@@ -19,12 +22,18 @@
       - >-
         jenkins_runtime_java.stderr is
         search('version "' ~ jenkins_java_major_version ~ '[.]')
+  tags:
+    - never
+    - deep_verify
 
 - name: Read Jenkins controller process ID
   ansible.builtin.command:
     argv: [systemctl, show, --property=MainPID, --value, jenkins]
   register: jenkins_main_pid
   changed_when: false
+  tags:
+    - never
+    - deep_verify
 
 - name: Read Jenkins controller process executable
   ansible.builtin.command:
@@ -34,6 +43,9 @@
       - "/proc/{{ jenkins_main_pid.stdout | trim }}/exe"
   register: jenkins_process_java
   changed_when: false
+  tags:
+    - never
+    - deep_verify
 
 - name: Require Jenkins controller process on Java 25
   ansible.builtin.assert:
@@ -43,6 +55,9 @@
     fail_msg: >-
       Jenkins process uses {{ jenkins_process_java.stdout | trim }}, expected
       {{ jenkins_java_command }}.
+  tags:
+    - never
+    - deep_verify
 
 - name: Check local Jenkins endpoint
   ansible.builtin.uri:

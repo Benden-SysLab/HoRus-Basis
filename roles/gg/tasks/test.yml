@@ -31,12 +31,22 @@
   register: gitguardian_api_status
   changed_when: false
   no_log: true
+  tags:
+    - never
+    - deep_verify
 
 - name: Report ggshield installation state
   ansible.builtin.assert:
     that:
       - gitguardian_version.rc == 0
       - gitguardian_help.rc == 0
-      - gitguardian_api_status.rc == 0
-    fail_msg: ggshield installation, command surface, or GitGuardian API authentication failed.
+    fail_msg: ggshield installation or command surface validation failed.
+
+- name: Require GitGuardian API authentication and health
+  ansible.builtin.assert:
+    that: gitguardian_api_status.rc == 0
+    fail_msg: GitGuardian API authentication failed.
+  tags:
+    - never
+    - deep_verify
 

@@ -35,6 +35,12 @@ server {
         default_type application/json;
     }
 
+    location /portal-health/ {
+        alias {{ nginx_portal_health_dir }}/;
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+    }
+
     location /icons/ {
         alias {{ nginx_portal_icons_dir }}/;
         add_header Cache-Control "no-cache" always;

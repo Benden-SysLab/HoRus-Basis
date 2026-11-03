@@ -55,9 +55,15 @@
   delegate_to: horus-db-srv03
   register: vault_postgresql_rows
   changed_when: false
+  tags:
+    - never
+    - deep_verify
 
 - name: Require Vault to have persisted data in PostgreSQL
   ansible.builtin.assert:
     that: vault_postgresql_rows.stdout | trim | int > 0
+  tags:
+    - never
+    - deep_verify
 
 

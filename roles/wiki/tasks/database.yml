@@ -3,8 +3,11 @@
   ansible.builtin.lineinfile:
     path: "{{ wiki_postgres_config_path }}"
     line: >-
-      host    {{ wiki_postgres_database }}    {{ wiki_postgres_user }}
-      {{ hostvars['horus-wiki-srv01'].ansible_host }}/32    scram-sha-256
+      {{
+        ['host', wiki_postgres_database, wiki_postgres_user,
+         hostvars['horus-wiki-srv01'].ansible_host ~ '/32', 'scram-sha-256']
+        | join('    ')
+      }}
     insertafter: EOF
     state: present
   delegate_to: horus-db-srv03
@@ -59,8 +62,7 @@
   ansible.builtin.command:
     argv: [runuser, -u, postgres, --, psql, -X, -v, ON_ERROR_STOP=1, -d, wiki, -c, "CREATE EXTENSION IF NOT EXISTS pg_trgm;"]
   delegate_to: horus-db-srv03
-  register: wiki_pg_trgm
-  changed_when: "'CREATE EXTENSION' in wiki_pg_trgm.stdout"
+  changed_when: false
 
 - name: Restrict Wiki.js database connection privileges
   ansible.builtin.command:

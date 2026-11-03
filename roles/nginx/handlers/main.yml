@@ -5,4 +5,19 @@
     name: "{{ nginx_service_name }}"
     state: reloaded
 
+- name: Reload systemd for HoRus portal health
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart HoRus portal health timer
+  ansible.builtin.systemd_service:
+    name: horus-portal-health.timer
+    enabled: true
+    state: restarted
+
+- name: Refresh HoRus portal health
+  ansible.builtin.systemd_service:
+    name: horus-portal-health.service
+    state: started
+
 

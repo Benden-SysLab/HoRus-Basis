@@ -14,12 +14,16 @@ nginx_worker_processes: auto
 nginx_portal_root: /var/www/horus
 nginx_portal_services_dir: /var/www/horus/services
 nginx_portal_icons_dir: /var/www/horus/icons
+nginx_portal_health_dir: /var/www/horus/health
+nginx_portal_health_script: /usr/local/libexec/horus-portal-health.py
+nginx_portal_health_interval: 60
+nginx_portal_health_timeout: 5
 nginx_tls_dir: /etc/nginx/tls
 nginx_tls_certificate: /etc/nginx/tls/horus-admin.crt
 nginx_tls_key: /etc/nginx/tls/horus-admin.key
 nginx_tls_common_name: ""
 nginx_tls_subject_alt_name: ""
-nginx_portal_asset_version: "20261029-1"
+nginx_portal_asset_version: "20261103-3"
 nginx_portal_required_icons:
   - cockpit.svg
   - v2raya.svg
@@ -34,11 +38,17 @@ nginx_portal_required_icons:
   - registry.svg
   - jenkins.svg
   - observability.svg
+  - keenetic.svg
 
 # Service manifests left by applications that have been retired from HoRus.
 # The dashboard discovers every JSON file in this directory automatically.
 nginx_retired_portal_manifests:
   - "{{ nginx_portal_services_dir }}/minio.json"
+  - "{{ nginx_portal_services_dir }}/net-gateway-admin.json"
+  - "{{ nginx_portal_services_dir }}/net-v2raya.json"
+  - "{{ nginx_portal_services_dir }}/net-technitium.json"
+  - "{{ nginx_portal_services_dir }}/net-switch-node01.json"
+  - "{{ nginx_portal_services_dir }}/net-switch-node02.json"
 
 # Foundation cards owned by Stage 01. Application roles publish their own
 # manifests later and use the Service category.

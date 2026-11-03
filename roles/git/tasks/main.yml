@@ -40,6 +40,8 @@
 - name: Publish Gitea in central DNS
   ansible.builtin.include_role:
     name: technitium_dns
+  when: horus_manage_dns | bool
+  tags: [dns]
   vars:
     technitium_dns_record_name: "{{ gitea_public_hostname }}"
     technitium_dns_record_address: "{{ horus_portal_dns_address }}"
@@ -47,4 +49,5 @@
   ansible.builtin.include_tasks: publish.yml
 - name: Validate Gitea
   ansible.builtin.include_tasks: test.yml
+  tags: [deep_verify]
 
